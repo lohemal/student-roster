@@ -1,0 +1,159 @@
+import { useQuery } from '@tanstack/react-query'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+
+import { AppShell } from '@/components/AppShell'
+import { appApi } from '@/ipc/app'
+import { errorDetail, errorMessage } from '@/ipc/invoke'
+import { settingsApi } from '@/ipc/settings'
+import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { SettingsPage } from '@/pages/SettingsPage'
+import { WelcomePage } from '@/pages/WelcomePage'
+import s from './App.module.css'
+
+export function App() {
+  const info = useQuery({ queryKey: ['app-info'], queryFn: appApi.info })
+  const settings = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get })
+
+  if (info.isLoading) {
+    return (
+      <div className={s.splash}>
+        <div className={s.splashMark} />
+        <p className={s.splashText}>학생명단 관리 시스템을 준비하는 중…</p>
+      </div>
+    )
+  }
+
+  if (info.error || !info.data) {
+    return (
+      <div className={s.splash}>
+        <h1 className={s.fatalTitle}>프로그램을 시작하지 못했습니다</h1>
+        <p className={s.fatalMsg}>{errorMessage(info.error)}</p>
+        {errorDetail(info.error) && (
+          <details className={s.fatalDetail}>
+            <summary>자세히</summary>
+            <pre className="selectable">{errorDetail(info.error)}</pre>
+          </details>
+        )}
+      </div>
+    )
+  }
+
+  const ready = info.data.setupCompleted
+
+  return (
+    <HashRouter>
+      <Routes>
+        {/* 첫 실행 화면은 사이드바 없이 단독으로 */}
+        <Route path="/welcome" element={<WelcomePage />} />
+
+        <Route
+          element={
+            ready ? (
+              <AppShell
+                appVersion={info.data.appVersion}
+                schoolName={settings.data?.schoolName}
+                currentYear={settings.data?.currentYear}
+              />
+            ) : (
+              <Navigate to="/welcome" replace />
+            )
+          }
+        >
+          <Route
+            path="/students"
+            element={
+              <PlaceholderPage
+                title="학생명단"
+                phase={1}
+                description="검색·필터·학생 등록·상세 수정이 들어옵니다. 연락처는 일부 번호만으로도 찾을 수 있습니다."
+              />
+            }
+          />
+          <Route
+            path="/transfer-in"
+            element={
+              <PlaceholderPage
+                title="전입생"
+                phase={6}
+                description="전입 등록 시 학년별 반·성별 학생수를 함께 보여 줍니다."
+              />
+            }
+          />
+          <Route
+            path="/transfer-out"
+            element={
+              <PlaceholderPage
+                title="전출생"
+                phase={6}
+                description="전출 처리한 학생과 시스템 도입 이전 전출생을 관리합니다."
+              />
+            }
+          />
+          <Route
+            path="/issues"
+            element={
+              <PlaceholderPage
+                title="확인 필요"
+                phase={5}
+                description="주소·생년월일·보호자·형제 후보 등 확인이 필요한 학생을 종류별로 모아 처리합니다."
+              />
+            }
+          />
+          <Route
+            path="/address-rules"
+            element={
+              <PlaceholderPage
+                title="주소 규칙"
+                phase={3}
+                description="도로명·단지명 → 주소 분류 규칙을 조회·수정·삭제합니다."
+              />
+            }
+          />
+          <Route
+            path="/stats"
+            element={
+              <PlaceholderPage
+                title="통계"
+                phase={7}
+                description="학년×반×성별, 주소 분류별 학생수를 학년도별로 봅니다."
+              />
+            }
+          />
+          <Route
+            path="/year-transition"
+            element={
+              <PlaceholderPage
+                title="학년도 전환"
+                phase={9}
+                description="반배정·신입생 자료로 다음 학년도를 미리 보고 생성합니다."
+              />
+            }
+          />
+          <Route
+            path="/graduates"
+            element={
+              <PlaceholderPage
+                title="졸업생"
+                phase={9}
+                description="학년도별 졸업생을 조회하고 내보냅니다."
+              />
+            }
+          />
+          <Route
+            path="/export"
+            element={
+              <PlaceholderPage
+                title="파일 내보내기"
+                phase={8}
+                description="원하는 항목만 고른 Excel 명단과 외부 시스템 업로드 양식을 만듭니다."
+              />
+            }
+          />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to={ready ? '/students' : '/welcome'} replace />} />
+      </Routes>
+    </HashRouter>
+  )
+}

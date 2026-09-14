@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "학생명단 관리 시스템",
+  "mainBinaryName": "student-roster",
+  "version": "0.1.0",
+  "identifier": "kr.school.studentroster",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1421",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "학생명단 관리 시스템",
+        "width": 1360,
+        "height": 860,
+        "minWidth": 1120,
+        "minHeight": 720,
+        "resizable": true,
+        "center": true,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["Korean"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      }
+    },
+    "publisher": "lohemal",
+    "copyright": "Copyright © 2026 lohemal",
+    "shortDescription": "초등학교 학생명단 통합 관리 프로그램",
+    "longDescription": "학생정보를 한 번만 등록하면 전입·전출·진급·통계·명단 생성을 프로그램이 처리합니다. 자료는 이 컴퓨터에만 저장됩니다.",
+    "category": "Education"
+  },
+  "plugins": {}
+}

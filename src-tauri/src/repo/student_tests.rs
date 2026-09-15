@@ -621,8 +621,12 @@ fn 같은_확인_필요가_두_번_쌓이지_않는다() {
 #[test]
 fn 확인_필요만_모아_볼_수_있다() {
     let db = db_with_year(2026);
+    // 빠진 항목도 없고 주소 분류까지 되어야 표시가 하나도 안 붙는다
+    db.write(|c| crate::repo::address::create_category(c, "5단지"))
+        .unwrap();
     let mut good = input("정상", 1, Some("가람"), Some(1));
-    good.primary_phone = Some("010-1111-2222".into()); // 빠진 항목이 없어야 표시가 안 붙는다
+    good.primary_phone = Some("010-1111-2222".into());
+    good.address_raw = Some("○○로 1(가온마을5단지)".into());
     add(&db, &good);
     let mut bad = input("문제있음", 1, None, None);
     bad.gender = None;

@@ -148,3 +148,20 @@
   font-size: var(--fs-sm);
   color: var(--error-text);
 }
+
+.addressSlot {
+  margin-top: var(--sp-5);
+}
+
+.manualAsk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.manualChoice {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}

@@ -433,6 +433,9 @@ pub fn merge(existing: &Existing, row: &ParsedRow, year: i32) -> (StudentInput, 
         grade,
         class_name,
         class_no,
+        // 엑셀 주소가 예전과 다르면 직접 지정한 분류도 새 주소에 맞는지 알 수 없다.
+        // 다시 판정하게 둔다 — 미리보기에 주소가 바뀐다는 것이 이미 나와 있다.
+        keep_manual_address: false,
     };
     (input, changes)
 }

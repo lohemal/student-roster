@@ -10,7 +10,8 @@ use chrono::NaiveDate;
 use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::{birth, korean, label, phone};
+use crate::domain::{address, birth, korean, label, phone};
+use crate::repo::address as addr_repo;
 use crate::error::{AppError, AppResult};
 use crate::repo::issue::{self, IssueKind, IssueRow};
 
@@ -37,6 +38,12 @@ pub struct StudentInput {
     pub grade: i32,
     pub class_name: Option<String>,
     pub class_no: Option<i32>,
+    /// 주소를 바꿀 때 직접 지정한 분류(MANUAL)를 그대로 둘지.
+    ///
+    /// 기본은 false — 주소가 달라지면 예전 분류가 새 주소에도 맞다고 볼 수 없으므로
+    /// 다시 판정한다. 사용자가 "그대로 두겠다" 고 고른 경우에만 true 로 온다.
+    #[serde(default)]
+    pub keep_manual_address: bool,
 }
 
 impl StudentInput {
@@ -73,10 +80,7 @@ fn clean(v: &Option<String>) -> Option<String> {
         .map(str::to_string)
 }
 
-/// 주소 검색·규칙 맞춤에 쓸 정리본. Phase 3 에서 더 다듬는다.
-fn normalize_address(raw: &str) -> String {
-    raw.split_whitespace().collect::<Vec<_>>().join(" ")
-}
+
 
 // ---------------------------------------------------------------
 // 출력
@@ -189,7 +193,8 @@ pub fn create(c: &Connection, input: &StudentInput, today: NaiveDate) -> AppResu
     let (primary_phone, primary_digits) =
         phone::normalize(input.primary_phone.as_deref().unwrap_or(""));
     let address_raw = clean(&input.address_raw);
-    let address_norm = address_raw.as_deref().map(normalize_address);
+    let parsed = address::parse(address_raw.as_deref().unwrap_or(""));
+    let address_norm = (!parsed.norm.is_empty()).then(|| parsed.norm.clone());
 
     c.execute(
         "INSERT INTO students(
@@ -217,6 +222,11 @@ pub fn create(c: &Connection, input: &StudentInput, today: NaiveDate) -> AppResu
         ],
     )?;
     let student_id = c.last_insert_rowid();
+
+    // 주소 분류는 등록하자마자 따진다. 규칙이 이미 있으면 바로 분류된다.
+    let book = addr_repo::Book::load(c)?;
+    let decision = book.classify(&parsed);
+    addr_repo::write_decision(c, student_id, &parsed, &decision)?;
 
     let class_name = clean(&input.class_name);
     c.execute(
@@ -265,18 +275,14 @@ pub fn update(
     let (primary_phone, primary_digits) =
         phone::normalize(input.primary_phone.as_deref().unwrap_or(""));
     let address_raw = clean(&input.address_raw);
-    let address_norm = address_raw.as_deref().map(normalize_address);
+    let parsed = address::parse(address_raw.as_deref().unwrap_or(""));
+    let address_norm = (!parsed.norm.is_empty()).then(|| parsed.norm.clone());
 
-    // 주소가 바뀌면 분류 근거를 다시 따져야 한다. 다만 사용자가 직접 지정한
-    // 분류(MANUAL)는 건드리지 않는다 — 자동화가 사람 판단을 덮어쓰지 않는다.
-    let old_address: Option<String> = c
-        .query_row(
-            "SELECT address_raw FROM students WHERE id = ?1",
-            [student_id],
-            |r| r.get(0),
-        )
-        .optional()?
-        .flatten();
+    let (old_address, old_source): (Option<String>, String) = c.query_row(
+        "SELECT address_raw, address_source FROM students WHERE id = ?1",
+        [student_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
     let address_changed = old_address != address_raw;
 
     let changed = c.execute(
@@ -313,12 +319,21 @@ pub fn update(
         return Err(AppError::not_found("학생을 찾을 수 없습니다."));
     }
 
-    if address_changed {
+    // 주소 분류 다시 따지기.
+    //
+    // 주소가 그대로면 이미 정해진 것을 그대로 둔다. 주소가 달라졌다면 예전 판정이
+    // 새 주소에도 맞다고 볼 수 없으므로 다시 따진다 — 직접 지정(MANUAL)도 마찬가지다.
+    // 사용자가 "직접 지정을 그대로 두겠다" 고 고른 경우에만 남긴다.
+    let keep_manual = old_source == "MANUAL" && (!address_changed || input.keep_manual_address);
+    if !keep_manual {
+        let book = addr_repo::Book::load(c)?;
+        let decision = book.classify(&parsed);
+        addr_repo::write_decision(c, student_id, &parsed, &decision)?;
+    } else {
+        // 분류는 그대로 두고 정리값만 새 주소에 맞춘다
         c.execute(
-            "UPDATE students
-                SET address_category_id = NULL, address_source = 'NONE', address_rule_id = NULL
-              WHERE id = ?1 AND address_source <> 'MANUAL'",
-            [student_id],
+            "UPDATE students SET address_norm = ?2, address_road = ?3 WHERE id = ?1",
+            params![student_id, address_norm.as_deref(), parsed.road.as_deref()],
         )?;
     }
 
@@ -590,6 +605,49 @@ pub fn sync_issues(
         None => issue::close(c, student_id, IssueKind::Duplicate)?,
     }
 
+    // --- 주소 분류 ---
+    //
+    // 주소가 있는데 분류하지 못했거나 규칙이 부딪히면 확인을 요청한다.
+    // 분류가 되면(직접 지정 포함) 표시는 저절로 닫힌다.
+    // 주소 자체가 없는 것은 위의 '필수 정보 누락' 이 이미 알린다.
+    let (addr_source, has_category): (String, bool) = c.query_row(
+        "SELECT address_source, address_category_id IS NOT NULL FROM students WHERE id = ?1",
+        [student_id],
+        |r| Ok((r.get(0)?, r.get::<_, i64>(1)? == 1)),
+    )?;
+
+    let addr_problem = if address.is_none() || has_category {
+        None
+    } else if addr_source == "CONFLICT" {
+        let detail = c
+            .query_row(
+                "SELECT address_raw FROM students WHERE id = ?1",
+                [student_id],
+                |r| r.get::<_, Option<String>>(0),
+            )
+            .ok()
+            .flatten()
+            .map(|raw| {
+                let parsed = address::parse(&raw);
+                match addr_repo::Book::load(c).map(|b| b.classify(&parsed)) {
+                    Ok(d) => d.reason(),
+                    Err(_) => String::new(),
+                }
+            })
+            .filter(|s| !s.is_empty());
+        Some((
+            "주소 규칙이 서로 다른 분류를 가리킵니다. 규칙을 확인해 주세요.".to_string(),
+            detail,
+        ))
+    } else {
+        Some((
+            "주소 분류를 정하지 못했습니다. 분류를 지정하거나 주소 규칙을 만들어 주세요."
+                .to_string(),
+            None,
+        ))
+    };
+    issue::set(c, student_id, IssueKind::Address, addr_problem)?;
+
     Ok(())
 }
 
@@ -606,6 +664,9 @@ pub struct ListFilter {
     pub grade: Option<i32>,
     pub class_name: Option<String>,
     pub address_category_id: Option<i64>,
+    /// 주소는 있는데 아직 분류하지 못한 학생만
+    #[serde(default)]
+    pub address_unclassified: bool,
     /// ACTIVE(기본, 재학+전입) / ALL / ENROLLED / TRANSFER_IN / TRANSFER_OUT
     pub status: Option<String>,
     // 항목별 검색
@@ -659,6 +720,11 @@ fn build_where(f: &ListFilter) -> Where {
     }
     if let Some(cat) = f.address_category_id {
         w.push("s.address_category_id = ?", Value::Integer(cat));
+    }
+    if f.address_unclassified {
+        // 주소는 있는데 아직 분류하지 못한 학생 (주소가 없는 학생은 뺀다)
+        w.sql
+            .push("(s.address_category_id IS NULL AND s.address_raw IS NOT NULL)".into());
     }
     if let Some(n) = f.class_no {
         w.push("e.class_no = ?", Value::Integer(n as i64));

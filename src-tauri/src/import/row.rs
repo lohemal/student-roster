@@ -140,6 +140,8 @@ pub fn to_input(row: &ParsedRow, school_year: i32) -> StudentInput {
         grade: row.grade.unwrap_or(1),
         class_name: row.class_name.clone(),
         class_no: row.class_no,
+        // 새 학생이라 직접 지정한 분류가 있을 수 없다
+        keep_manual_address: false,
     }
 }
 

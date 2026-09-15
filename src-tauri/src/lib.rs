@@ -65,6 +65,20 @@ pub fn run() {
             commands::import::import_analyze,
             commands::import::import_apply,
             commands::import::import_history,
+            // 주소 분류 · 규칙
+            commands::address::address_category_list,
+            commands::address::address_category_create,
+            commands::address::address_category_rename,
+            commands::address::address_category_delete,
+            commands::address::address_rule_list,
+            commands::address::address_rule_create,
+            commands::address::address_rule_update,
+            commands::address::address_rule_delete,
+            commands::address::address_rule_preview,
+            commands::address::address_rule_apply,
+            commands::address::address_status,
+            commands::address::address_set_manual,
+            commands::address::address_reapply,
         ])
         .run(tauri::generate_context!())
         .expect("학생명단 관리 시스템을 시작하지 못했습니다.");

@@ -41,14 +41,22 @@ INSERT INTO address_categories (name, kind, sort_order, is_builtin) VALUES
   ('주택', 'HOUSE', 900, 1),
   ('기타', 'OTHER', 999, 1);
 
+-- 주소 → 분류 규칙. 믿음직한 순서대로 ROAD > COMPLEX > CONTAINS 로 본다.
+--
+--   ROAD     도로명 + 건물번호가 **정확히** 같을 때만. '○○로 12' 와 '○○로 123' 은 다르다
+--   COMPLEX  단지 이름이 들어 있을 때 (공백 차이는 무시)
+--   CONTAINS 단순 포함. 넓게 걸리므로 가장 마지막에 본다
+--
+-- 몇 명에게 적용됐는지는 세어 두지 않고 `students.address_rule_id` 를 그때그때 센다.
+-- 세어 둔 값은 언젠가 실제와 어긋나지만, 세는 것은 어긋나지 않는다.
 CREATE TABLE address_rules (
   id          INTEGER PRIMARY KEY,
   kind        TEXT NOT NULL CHECK (kind IN ('ROAD', 'COMPLEX', 'CONTAINS')),
   pattern     TEXT NOT NULL,                            -- ROAD: '한누리대로 123' / COMPLEX: '가온마을5단지' / CONTAINS: 임의 문자열
   category_id INTEGER NOT NULL REFERENCES address_categories(id) ON DELETE CASCADE,
   source      TEXT NOT NULL DEFAULT 'USER' CHECK (source IN ('USER', 'BUILTIN')),
+  is_active   INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
   note        TEXT,
-  hit_count   INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   UNIQUE (kind, pattern)
@@ -68,8 +76,15 @@ CREATE TABLE students (
 
   address_raw           TEXT,                           -- 입력 원문 (절대 수정하지 않음)
   address_norm          TEXT,                           -- 공백·괄호 정리본 (검색·규칙 매칭용)
+  address_road          TEXT,                           -- 뽑아낸 '도로명 건물번호' (동·호수는 뺀다)
   address_category_id   INTEGER REFERENCES address_categories(id) ON DELETE SET NULL,
-  address_source        TEXT NOT NULL DEFAULT 'NONE' CHECK (address_source IN ('NONE', 'AUTO', 'RULE', 'MANUAL')),
+  -- 분류를 **어떻게 정했는지**. 통계에서 네 가지를 갈라 봐야 한다.
+  --   NONE     아직 정하지 못함 (주소가 없거나, 걸리는 규칙이 없음)
+  --   AUTO     주소에 적힌 단지 이름으로 저절로
+  --   RULE     사용자가 만든 주소 규칙으로
+  --   MANUAL   사용자가 이 학생만 직접 지정 — 자동 재적용이 절대 건드리지 않는다
+  --   CONFLICT 같은 순위 규칙이 서로 다른 분류를 가리켜 정하지 못함
+  address_source        TEXT NOT NULL DEFAULT 'NONE' CHECK (address_source IN ('NONE', 'AUTO', 'RULE', 'MANUAL', 'CONFLICT')),
   address_rule_id       INTEGER REFERENCES address_rules(id) ON DELETE SET NULL,
 
   father_name           TEXT,
@@ -92,6 +107,8 @@ CREATE INDEX ix_students_father_digits  ON students(father_phone_digits);
 CREATE INDEX ix_students_mother_digits  ON students(mother_phone_digits);
 CREATE INDEX ix_students_primary_digits ON students(primary_phone_digits);
 CREATE INDEX ix_students_addr_cat       ON students(address_category_id);
+CREATE INDEX ix_students_addr_road      ON students(address_road);
+CREATE INDEX ix_students_addr_rule      ON students(address_rule_id);
 
 -- ---------------------------------------------------------------
 -- 학년도별 학적

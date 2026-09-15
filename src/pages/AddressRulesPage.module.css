@@ -1,0 +1,183 @@
+.grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.rowEnd {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-end;
+}
+
+.rowEnd > label {
+  flex: 1;
+}
+
+/* ---------- 분류 목록 ---------- */
+
+.catList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.catRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.catName {
+  flex: 1;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catMeta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.catActions {
+  display: flex;
+  gap: 2px;
+}
+
+.iconBtn {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+}
+
+.iconBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.iconBtnDanger:hover {
+  background: var(--error-soft);
+  color: var(--error-text);
+}
+
+/* ---------- 규칙 표 ---------- */
+
+.patternCell {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.inactive {
+  opacity: 0.55;
+}
+
+.appliedCell {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ruleForm {
+  display: grid;
+  grid-template-columns: 130px 1fr 150px auto;
+  gap: var(--sp-2);
+  align-items: end;
+}
+
+@media (max-width: 900px) {
+  .ruleForm {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kindHint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  grid-column: 1 / -1;
+  margin-top: -4px;
+}
+
+/* ---------- 전체 재적용 ---------- */
+
+.resultGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: var(--sp-2);
+}
+
+.tile {
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.tileNum {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tileLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.tileOk .tileNum { color: var(--success-text); }
+.tileWarn .tileNum { color: var(--warn-text); }
+.tileError .tileNum { color: var(--error-text); }
+
+.bar {
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: var(--radius-full);
+  transition: width 0.15s ease;
+}
+
+.progressText {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}

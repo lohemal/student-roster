@@ -13,7 +13,9 @@ import {
   Tabs,
   type TabDef,
 } from '@/components/ui'
+import { addressApi } from '@/ipc/address'
 import { studentApi, type StudentDetail, type StudentInput } from '@/ipc/student'
+import { AddressPanel } from './AddressPanel'
 import { birthCell, genderLabel, statusBadge } from '@/lib/format'
 import { StudentForm, emptyStudent } from './StudentForm'
 import s from './StudentDrawer.module.css'
@@ -37,6 +39,7 @@ function toInput(d: StudentDetail, schoolYear: number): StudentInput {
     grade: e?.grade ?? 1,
     className: e?.className ?? '',
     classNo: e?.classNo ?? null,
+    keepManualAddress: false,
   }
 }
 
@@ -106,6 +109,14 @@ export function StudentDrawer({
 
   const d = detail.data
   const issueCount = d?.issues.length ?? 0
+
+  // 주소 판정 상태 — 주소를 고쳤을 때 직접 지정을 어떻게 할지 묻는 데 쓴다
+  const addressStatus = useQuery({
+    queryKey: ['address-status', studentId],
+    queryFn: () => addressApi.status(studentId!),
+    enabled: !isNew,
+  })
+  const addressChanged = (d?.addressRaw ?? '').trim() !== form.addressRaw.trim()
 
   const tabs: TabDef<TabKey>[] = useMemo(
     () => [
@@ -188,6 +199,48 @@ export function StudentDrawer({
       {(isNew || d) && tab === 'basic' && (
         <>
           <StudentForm value={form} onChange={setForm} classSuggestions={classSuggestions} />
+
+          {/*
+            주소를 고쳤는데 분류를 직접 지정해 둔 학생이면 한 번 묻는다.
+            예전 분류가 새 주소에도 맞다고 볼 수 없기 때문이다.
+          */}
+          {d && addressChanged && addressStatus.data?.source === 'MANUAL' && (
+            <div className={s.manualAsk}>
+              <Notice tone="warn">
+                이 학생의 주소 분류는 <b>{addressStatus.data.categoryName}</b>(으)로 직접
+                지정되어 있습니다. 주소를 바꾸면 그 분류가 새 주소에도 맞는지 알 수 없습니다.
+              </Notice>
+              <div className={s.manualChoice}>
+                <Button
+                  size="sm"
+                  variant={form.keepManualAddress ? 'outline' : 'primary'}
+                  onClick={() => setForm({ ...form, keepManualAddress: false })}
+                >
+                  새 주소로 다시 판정
+                </Button>
+                <Button
+                  size="sm"
+                  variant={form.keepManualAddress ? 'primary' : 'outline'}
+                  onClick={() => setForm({ ...form, keepManualAddress: true })}
+                >
+                  {addressStatus.data.categoryName} 그대로 두기
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {d && (
+            <div className={s.addressSlot}>
+              <AddressPanel
+                studentId={d.id}
+                schoolYear={schoolYear}
+                currentAddress={form.addressRaw}
+                savedAddress={d.addressRaw ?? ''}
+                onChanged={invalidate}
+              />
+            </div>
+          )}
+
           {d && (
             <div className={s.meta}>
               <span>등록 {d.createdAt}</span>

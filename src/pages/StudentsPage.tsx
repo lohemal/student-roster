@@ -26,6 +26,7 @@ import {
   Page,
 } from '@/components/ui'
 import { StudentDrawer } from '@/features/student/StudentDrawer'
+import { addressApi } from '@/ipc/address'
 import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
 import { studentApi, type ListFilter, type StatusFilter } from '@/ipc/student'
@@ -71,6 +72,8 @@ export function StudentsPage() {
   const [grade, setGrade] = useState<number | null>(null)
   const [className, setClassName] = useState<string | null>(null)
   const [status, setStatus] = useState<StatusFilter>('ACTIVE')
+  // '' 전체 / 'NONE' 미분류만 / 숫자 분류 id
+  const [addressCat, setAddressCat] = useState<string>('')
   const [onlyIssues, setOnlyIssues] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [adv, setAdv] = useState<Advanced>(EMPTY_ADVANCED)
@@ -78,6 +81,12 @@ export function StudentsPage() {
 
   // 열려 있는 학생. undefined = 닫힘, null = 새 등록
   const [openStudent, setOpenStudent] = useState<number | null | undefined>(undefined)
+
+  const addressCats = useQuery({
+    queryKey: ['address-categories', schoolYear],
+    queryFn: () => addressApi.categories(schoolYear!),
+    enabled: schoolYear != null,
+  })
 
   const classOptions = useQuery({
     queryKey: ['class-options', schoolYear],
@@ -94,6 +103,8 @@ export function StudentsPage() {
       className,
       status,
       onlyIssues,
+      addressCategoryId: addressCat && addressCat !== 'NONE' ? Number(addressCat) : null,
+      addressUnclassified: addressCat === 'NONE',
       name: adv.name.trim() || undefined,
       classNo: adv.classNo.trim() ? Number(adv.classNo) : null,
       address: adv.address.trim() || undefined,
@@ -101,12 +112,12 @@ export function StudentsPage() {
       motherPhone: adv.motherPhone.trim() || undefined,
       primaryPhone: adv.primaryPhone.trim() || undefined,
     }
-  }, [schoolYear, q, grade, className, status, onlyIssues, adv])
+  }, [schoolYear, q, grade, className, status, onlyIssues, adv, addressCat])
 
   // 조건이 바뀌면 첫 쪽으로
   useEffect(() => {
     setPage(0)
-  }, [q, grade, className, status, onlyIssues, adv])
+  }, [q, grade, className, status, onlyIssues, adv, addressCat])
 
   const list = useQuery({
     queryKey: ['students', filter, page],
@@ -125,6 +136,7 @@ export function StudentsPage() {
     qc.invalidateQueries({ queryKey: ['students'] })
     qc.invalidateQueries({ queryKey: ['class-options'] })
     qc.invalidateQueries({ queryKey: ['issue-summary'] })
+    qc.invalidateQueries({ queryKey: ['address-categories'] })
     qc.invalidateQueries({ queryKey: ['settings'] })
   }
 
@@ -141,6 +153,7 @@ export function StudentsPage() {
     grade != null ||
     className != null ||
     onlyIssues ||
+    addressCat !== '' ||
     status !== 'ACTIVE' ||
     Object.values(adv).some((v) => v.trim() !== '')
 
@@ -150,6 +163,7 @@ export function StudentsPage() {
     setClassName(null)
     setStatus('ACTIVE')
     setOnlyIssues(false)
+    setAddressCat('')
     setAdv(EMPTY_ADVANCED)
   }
 
@@ -240,6 +254,20 @@ export function StudentsPage() {
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
+              </option>
+            ))}
+          </Select>
+
+          <Select
+            className={s.compact}
+            value={addressCat}
+            onChange={(e) => setAddressCat(e.target.value)}
+          >
+            <option value="">전체 주소</option>
+            <option value="NONE">미분류</option>
+            {(addressCats.data ?? []).map((c) => (
+              <option key={c.id} value={String(c.id)}>
+                {c.name}
               </option>
             ))}
           </Select>

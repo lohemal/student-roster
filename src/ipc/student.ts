@@ -99,6 +99,8 @@ export interface StudentInput {
   grade: number
   className: string
   classNo: number | null
+  /** 주소를 바꿀 때 직접 지정한 주소 분류를 그대로 둘지 */
+  keepManualAddress?: boolean
 }
 
 export type StatusFilter = 'ACTIVE' | 'ALL' | 'ENROLLED' | 'TRANSFER_IN' | 'TRANSFER_OUT'
@@ -109,6 +111,8 @@ export interface ListFilter {
   grade?: number | null
   className?: string | null
   addressCategoryId?: number | null
+  /** 주소는 있는데 아직 분류하지 못한 학생만 */
+  addressUnclassified?: boolean
   status?: StatusFilter
   name?: string
   classNo?: number | null

@@ -7,6 +7,7 @@ import { errorDetail, errorMessage } from '@/ipc/invoke'
 import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { AddressRulesPage } from '@/pages/AddressRulesPage'
 import { ImportPage } from '@/pages/ImportPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { StudentsPage } from '@/pages/StudentsPage'
@@ -101,16 +102,7 @@ export function App() {
               />
             }
           />
-          <Route
-            path="/address-rules"
-            element={
-              <PlaceholderPage
-                title="주소 규칙"
-                phase={3}
-                description="도로명·단지명 → 주소 분류 규칙을 조회·수정·삭제합니다."
-              />
-            }
-          />
+          <Route path="/address-rules" element={<AddressRulesPage />} />
           <Route
             path="/stats"
             element={

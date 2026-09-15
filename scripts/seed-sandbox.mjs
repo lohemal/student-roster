@@ -44,13 +44,35 @@ const CLASSES = {
   6: ['가람', '나리', '다솜'],
 }
 
-const ROADS = [
-  ['한누리대로', '가온마을5단지'],
-  ['도움3로', '새뜸마을1단지'],
-  ['보람로', '새뜸마을2단지'],
-  ['갈매로', null],
-  ['시청대로', '한솔마을3단지'],
+/**
+ * 가상 주소. 주소 분류 시험을 위해 네 갈래를 섞는다.
+ *
+ *   complex  주소에 단지 이름이 적혀 있다 → 분류만 만들면 저절로 분류된다
+ *   roadOnly 단지 이름이 없다 → 도로명 규칙을 만들어야 분류된다
+ *   villa    빌라 이름만 있다 → 포함 규칙으로 '주택' 에 넣을 수 있다
+ *   plain    아무 단서가 없다 → 미분류로 남는다
+ */
+const PLACES = [
+  { kind: 'complex', road: '가온로', no: 101, complex: '가온마을5단지', weight: 22 },
+  { kind: 'complex', road: '나온로', no: 202, complex: '나온마을1단지', weight: 18 },
+  { kind: 'complex', road: '다온로', no: 303, complex: '다온마을2단지', weight: 15 },
+  // 단지 이름이 안 적힌 같은 아파트 — 도로명 규칙이 필요하다
+  { kind: 'roadOnly', road: '라온로', no: 404, complex: null, weight: 16 },
+  { kind: 'roadOnly', road: '마온로', no: 505, complex: null, weight: 12 },
+  { kind: 'villa', road: '바온로', no: 606, complex: null, weight: 10 },
+  { kind: 'plain', road: '사온로', no: 707, complex: null, weight: 7 },
 ]
+
+/** 가중치에 맞춰 하나 고른다 */
+function pickPlace() {
+  const total = PLACES.reduce((n, p) => n + p.weight, 0)
+  let r = rnd() * total
+  for (const p of PLACES) {
+    r -= p.weight
+    if (r <= 0) return p
+  }
+  return PLACES[PLACES.length - 1]
+}
 
 let seed = 20260915
 /**
@@ -181,11 +203,26 @@ for (let i = 0; i < COUNT; i++) {
     families.push(family)
   }
 
-  const [road, complex] = pick(ROADS)
-  const buildingNo = 1 + Math.floor(rnd() * 400)
-  const address = complex
-    ? `세종특별자치시 ${road} ${buildingNo}, ${1 + Math.floor(rnd() * 9)}동 ${100 + Math.floor(rnd() * 900)}호(${complex})`
-    : `세종특별자치시 ${road} ${buildingNo}`
+  const place = pickPlace()
+  const dong = 101 + Math.floor(rnd() * 12)
+  const ho = `${1 + Math.floor(rnd() * 15)}0${1 + Math.floor(rnd() * 4)}`
+  let address
+  switch (place.kind) {
+    case 'complex':
+      // 띄어쓰기를 일부러 들쭉날쭉하게 — 같은 단지로 읽혀야 한다
+      address = chance(0.5)
+        ? `○○시 ${place.road} ${place.no}, ${dong}동 ${ho}호(${place.complex})`
+        : `○○시 ${place.road} ${place.no} ${dong}동 ${ho}호 (${place.complex.replace('마을', '마을 ')})`
+      break
+    case 'roadOnly':
+      address = `○○시 ${place.road} ${place.no}, ${dong}동 ${ho}호`
+      break
+    case 'villa':
+      address = `○○시 ${place.road} ${place.no} 가온빌라 ${ho}호`
+      break
+    default:
+      address = `○○시 ${place.road} ${place.no}-${1 + Math.floor(rnd() * 20)}`
+  }
 
   // 일부러 비워 두는 칸들 — '확인 필요'가 생기도록
   const noGender = chance(0.02)
@@ -248,6 +285,12 @@ console.log(`${YEAR}학년도 재학생 ${enrolled}명`)
 console.log(`자료 파일: ${dbPath}`)
 console.log('')
 console.log('확인 필요 표시는 앱에서 학생을 한 번 저장하면 계산됩니다.')
+console.log('')
+console.log('주소 분류 시험:')
+console.log("  · '가온마을5단지' '나온마을1단지' '다온마을2단지' 분류를 만들면 저절로 분류됩니다")
+console.log("  · '라온로 404' '마온로 505' 는 도로명 규칙이 있어야 분류됩니다")
+console.log("  · '가온빌라' 는 포함 규칙으로 '주택' 에 넣을 수 있습니다")
+console.log("  · '사온로' 는 단서가 없어 미분류로 남습니다")
 console.log('연락처 검색 시험: 1234 / 5678 (첫 번째 학생)')
 
 db.close()

@@ -19,6 +19,7 @@ export function emptyStudent(schoolYear: number, grade = 1): StudentInput {
     grade,
     className: '',
     classNo: null,
+    keepManualAddress: false,
   }
 }
 

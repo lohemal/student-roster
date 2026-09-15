@@ -41,6 +41,16 @@ pub fn run() {
             commands::settings::settings_save_school,
             commands::settings::school_year_create,
             commands::settings::school_year_set_current,
+            // 학생 · 명단
+            commands::student::student_list,
+            commands::student::student_get,
+            commands::student::student_create,
+            commands::student::student_update,
+            commands::student::student_delete,
+            commands::student::student_class_options,
+            // 확인 필요
+            commands::issue::issue_summary,
+            commands::issue::issue_recompute,
         ])
         .run(tauri::generate_context!())
         .expect("학생명단 관리 시스템을 시작하지 못했습니다.");

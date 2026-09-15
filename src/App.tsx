@@ -4,15 +4,23 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { appApi } from '@/ipc/app'
 import { errorDetail, errorMessage } from '@/ipc/invoke'
+import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { StudentsPage } from '@/pages/StudentsPage'
 import { WelcomePage } from '@/pages/WelcomePage'
 import s from './App.module.css'
 
 export function App() {
   const info = useQuery({ queryKey: ['app-info'], queryFn: appApi.info })
   const settings = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get })
+  const year = settings.data?.currentYear ?? null
+  const issues = useQuery({
+    queryKey: ['issue-summary', year],
+    queryFn: () => issueApi.summary(year!),
+    enabled: year != null,
+  })
 
   if (info.isLoading) {
     return (
@@ -53,22 +61,14 @@ export function App() {
                 appVersion={info.data.appVersion}
                 schoolName={settings.data?.schoolName}
                 currentYear={settings.data?.currentYear}
+                issueCount={issues.data?.total ?? 0}
               />
             ) : (
               <Navigate to="/welcome" replace />
             )
           }
         >
-          <Route
-            path="/students"
-            element={
-              <PlaceholderPage
-                title="학생명단"
-                phase={1}
-                description="검색·필터·학생 등록·상세 수정이 들어옵니다. 연락처는 일부 번호만으로도 찾을 수 있습니다."
-              />
-            }
-          />
+          <Route path="/students" element={<StudentsPage />} />
           <Route
             path="/transfer-in"
             element={

@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
-import { AlertTriangle, CheckCircle2, Info, XCircle, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Info, X, XCircle, type LucideIcon } from 'lucide-react'
 
 import { errorDetail, errorMessage } from '@/ipc/invoke'
 import s from './ui.module.css'
@@ -102,14 +103,17 @@ export function Button({
 export function Field({
   label,
   hint,
+  className,
   children,
 }: {
   label: string
-  hint?: string
+  hint?: ReactNode
+  /** 격자 안에서 칸을 더 차지해야 할 때 (예: 주소) */
+  className?: string
   children: ReactNode
 }) {
   return (
-    <label className={s.field}>
+    <label className={cx(s.field, className)}>
       <span className={s.label}>{label}</span>
       {children}
       {hint && <span className={s.hint}>{hint}</span>}
@@ -215,4 +219,107 @@ export function Empty({
       {action}
     </div>
   )
+}
+
+/* ---------- Table ---------- */
+
+export function TableWrap({ children }: { children: ReactNode }) {
+  return (
+    <div className={s.tableWrap}>
+      <table className={s.table}>{children}</table>
+    </div>
+  )
+}
+
+export const tableClass = {
+  num: s.num,
+  center: s.center,
+  muted: s.muted,
+  rowActive: s.rowActive,
+}
+
+/* ---------- Tabs ---------- */
+
+export interface TabDef<K extends string> {
+  key: K
+  label: string
+  /** 탭 이름 옆에 보여줄 개수 (0이면 감춘다) */
+  count?: number
+}
+
+export function Tabs<K extends string>({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: TabDef<K>[]
+  active: K
+  onChange: (key: K) => void
+}) {
+  return (
+    <div className={s.tabs} role="tablist">
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          role="tab"
+          aria-selected={t.key === active}
+          className={t.key === active ? `${s.tab} ${s.tabActive}` : s.tab}
+          onClick={() => onChange(t.key)}
+        >
+          {t.label}
+          {t.count ? <span className={s.tabCount}>{t.count}</span> : null}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/* ---------- Drawer ---------- */
+
+export function Drawer({
+  title,
+  subtitle,
+  onClose,
+  tabs,
+  footer,
+  children,
+}: {
+  title: string
+  subtitle?: ReactNode
+  onClose: () => void
+  tabs?: ReactNode
+  footer?: ReactNode
+  children: ReactNode
+}) {
+  // Esc 로 닫는다 — 업무 중 손이 마우스를 떠나지 않도록
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <>
+      <div className={s.scrim} onClick={onClose} aria-hidden="true" />
+      <aside className={s.drawer} role="dialog" aria-label={title}>
+        <header className={s.drawerHead}>
+          <div className={s.drawerTitle}>{title}</div>
+          {subtitle}
+          <button type="button" className={s.iconBtn} onClick={onClose} aria-label="닫기">
+            <X size={18} />
+          </button>
+        </header>
+        {tabs}
+        <div className={s.drawerBody}>{children}</div>
+        {footer && <footer className={s.drawerFoot}>{footer}</footer>}
+      </aside>
+    </>
+  )
+}
+
+export function DrawerSpacer() {
+  return <span className={s.drawerFootSpacer} />
 }

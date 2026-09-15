@@ -97,6 +97,8 @@ CREATE INDEX ix_students_addr_cat       ON students(address_category_id);
 -- 학년도별 학적
 -- ---------------------------------------------------------------
 
+-- 한 학년도에 한 행. **현재 상태**를 담는다(이력이 아니다).
+-- 전입일·전출일은 가장 최근 값의 사본이며, 이동 이력의 원본은 enrollment_events 다.
 CREATE TABLE enrollments (
   id                 INTEGER PRIMARY KEY,
   student_id         INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -105,8 +107,8 @@ CREATE TABLE enrollments (
   class_name         TEXT,                              -- '1', '가람' … NULL = 반배정 미정
   class_no           INTEGER CHECK (class_no IS NULL OR class_no >= 1),
   status             TEXT NOT NULL DEFAULT 'ENROLLED' CHECK (status IN ('ENROLLED', 'TRANSFER_IN', 'TRANSFER_OUT')),
-  transfer_in_date   TEXT,
-  transfer_out_date  TEXT,
+  transfer_in_date   TEXT,                              -- 가장 최근 전입일 (원본은 events)
+  transfer_out_date  TEXT,                              -- 가장 최근 전출일 (원본은 events)
   transfer_out_note  TEXT,
   created_at         TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at         TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
@@ -115,6 +117,38 @@ CREATE TABLE enrollments (
 
 CREATE INDEX ix_enroll_year_class ON enrollments(school_year, grade, class_name, class_no);
 CREATE INDEX ix_enroll_status     ON enrollments(school_year, status);
+
+-- ---------------------------------------------------------------
+-- 학적 이동 이력 — 덧붙이기만 한다 (고치거나 지우지 않는다)
+--
+-- 같은 학년도에 전출했다가 다시 전입하는 일이 실제로 있다. enrollments 는
+-- 한 학년도에 한 행이므로 그것만으로는 두 번째 이동이 첫 번째를 덮어쓴다.
+-- 그래서 이동은 여기에 사건으로 남기고, enrollments 에는 현재 상태만 둔다.
+-- 학년/반/번호는 그 시점 스냅샷이라 나중에 반이 바뀌어도 기록이 흐트러지지 않는다.
+-- ---------------------------------------------------------------
+
+CREATE TABLE enrollment_events (
+  id           INTEGER PRIMARY KEY,
+  student_id   INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  school_year  INTEGER NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN (
+                 'ENROLL',        -- 최초 등록
+                 'TRANSFER_IN',   -- 전입 (재전입 포함)
+                 'TRANSFER_OUT',  -- 전출
+                 'PROMOTE',       -- 학년도 전환으로 진급
+                 'GRADUATE',      -- 졸업
+                 'CANCEL')),      -- 앞선 처리 취소·정정
+  event_date   TEXT,                                    -- 실제 발생일. 모르면 NULL
+  grade        INTEGER,                                 -- 그 시점 스냅샷
+  class_name   TEXT,
+  class_no     INTEGER,
+  note         TEXT,
+  source       TEXT NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'IMPORT', 'TRANSITION')),
+  created_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX ix_events_student ON enrollment_events(student_id, school_year, id);
+CREATE INDEX ix_events_year    ON enrollment_events(school_year, kind);
 
 -- ---------------------------------------------------------------
 -- 졸업 기록
@@ -158,8 +192,16 @@ CREATE TABLE issues (
   id           INTEGER PRIMARY KEY,
   student_id   INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   kind         TEXT NOT NULL CHECK (kind IN (
-                 'ADDRESS', 'BIRTH', 'GUARDIAN_CONFLICT', 'GUARDIAN_FILL',
-                 'SIBLING_CANDIDATE', 'DUPLICATE', 'MISSING', 'CLASS_ASSIGN', 'OTHER')),
+                 'ADDRESS',            -- 주소 분류를 정하지 못함
+                 'BIRTH',              -- 생년월일을 날짜로 읽지 못하거나 범위를 벗어남
+                 'GUARDIAN_CONFLICT',  -- 형제인데 보호자 정보가 서로 다름
+                 'GUARDIAN_FILL',      -- 형제에게 있는 정보로 빈칸을 채울 수 있음
+                 'SIBLING_CANDIDATE',  -- 형제 후보 확인 필요
+                 'DUPLICATE',          -- 같은 학년도에 이름+생년월일이 같은 학생이 있음
+                 'MISSING',            -- 성별·생년월일·주소·연락처 등이 비어 있음
+                 'CLASS_ASSIGN',       -- 반 또는 번호가 정해지지 않음
+                 'NUMBER_DUP',         -- 같은 반에 같은 번호가 둘 이상
+                 'OTHER')),
   message      TEXT NOT NULL,                           -- 사용자에게 보여줄 문장
   detail       TEXT,                                    -- JSON 근거 (후보 목록, 비교값 등)
   ref_id       INTEGER,                                 -- sibling_links.id 등 관련 행
@@ -177,15 +219,23 @@ CREATE UNIQUE INDEX ux_issues_open ON issues(student_id, kind, COALESCE(ref_id, 
 -- 작업 기록
 -- ---------------------------------------------------------------
 
+-- 가져오기는 '분석(미리보기) → 적용' 두 단계로 동작한다. 이 표에는 적용된 것만 남는다.
+-- mode 로 '새로 추가만' / '기존 학생 갱신' / '둘 다' 를 구분하고, mapping 에 열 짝짓기를
+-- 남겨 다음 가져오기에서 다시 쓴다.
 CREATE TABLE imports (
-  id           INTEGER PRIMARY KEY,
-  file_name    TEXT NOT NULL,
-  school_year  INTEGER NOT NULL,
-  imported_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  total        INTEGER NOT NULL DEFAULT 0,
-  ok_count     INTEGER NOT NULL DEFAULT 0,
-  flagged      INTEGER NOT NULL DEFAULT 0,
-  summary      TEXT                                     -- JSON: 종류별 개수
+  id            INTEGER PRIMARY KEY,
+  file_name     TEXT NOT NULL,
+  sheet_name    TEXT,
+  school_year   INTEGER NOT NULL,
+  mode          TEXT NOT NULL DEFAULT 'ADD' CHECK (mode IN ('ADD', 'UPDATE', 'BOTH')),
+  imported_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  total         INTEGER NOT NULL DEFAULT 0,             -- 파일에서 읽은 행 수
+  added         INTEGER NOT NULL DEFAULT 0,             -- 새로 등록한 학생
+  updated       INTEGER NOT NULL DEFAULT 0,             -- 기존 학생을 고친 수
+  skipped       INTEGER NOT NULL DEFAULT 0,             -- 사용자가 건너뛴 행
+  flagged       INTEGER NOT NULL DEFAULT 0,             -- 확인 필요가 생긴 학생
+  mapping       TEXT,                                   -- JSON: 엑셀 열 -> 항목 짝짓기
+  summary       TEXT                                    -- JSON: 확인 필요 종류별 개수
 );
 
 CREATE TABLE year_transitions (

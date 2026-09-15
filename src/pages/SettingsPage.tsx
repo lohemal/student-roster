@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FolderOpen, Plus } from 'lucide-react'
+import { FolderOpen, Plus, RefreshCw } from 'lucide-react'
 
 import { Badge, Button, Card, ErrorNotice, Field, Input, Notice, Page } from '@/components/ui'
 import { appApi } from '@/ipc/app'
+import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
 import { guessSchoolYear, yearLabel } from '@/lib/schoolYear'
 import s from './SettingsPage.module.css'
@@ -42,6 +43,15 @@ export function SettingsPage() {
   const setCurrent = useMutation({
     mutationFn: (year: number) => settingsApi.setCurrentYear(year),
     onSuccess: invalidate,
+  })
+
+  // ---- 자료 점검 ----
+  const recompute = useMutation({
+    mutationFn: () => issueApi.recompute(settings.data!.currentYear!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['issue-summary'] })
+      qc.invalidateQueries({ queryKey: ['students'] })
+    },
   })
 
   const data = settings.data
@@ -127,6 +137,34 @@ export function SettingsPage() {
               </Button>
             </div>
             <ErrorNotice error={createYear.error ?? setCurrent.error} />
+          </div>
+        </Card>
+
+        <Card
+          title="자료 점검"
+          description="자료를 밖에서 고쳤거나 예전 명단을 들여온 뒤에 한 번 눌러 주세요."
+        >
+          <div className={s.stack}>
+            <Notice tone="info">
+              학생을 한 명씩 저장할 때는 확인 필요가 저절로 다시 계산됩니다. 이 버튼은 그 계산을
+              현재 학년도 학생 전체에 대해 한 번에 돌립니다.
+            </Notice>
+            {recompute.isSuccess && (
+              <span className={s.saved}>
+                {recompute.data.toLocaleString('ko-KR')}명을 다시 살펴봤습니다.
+              </span>
+            )}
+            <ErrorNotice error={recompute.error} />
+            <div>
+              <Button
+                icon={RefreshCw}
+                variant="outline"
+                onClick={() => recompute.mutate()}
+                disabled={recompute.isPending || data?.currentYear == null}
+              >
+                확인 필요 다시 계산
+              </Button>
+            </div>
           </div>
         </Card>
 

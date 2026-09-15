@@ -1,0 +1,150 @@
+.loading {
+  padding: var(--sp-8);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.blockTitle {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--sp-3);
+}
+
+.yearList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yearRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.yearRowNow {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+}
+
+.yearName {
+  font-weight: 700;
+  min-width: 84px;
+}
+
+.yearWhere {
+  flex: 1;
+  color: var(--text-2);
+}
+
+.events {
+  display: flex;
+  flex-direction: column;
+}
+
+.event {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: 7px 0 7px 14px;
+  border-left: 2px solid var(--border);
+  position: relative;
+}
+
+.event::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.eventKind {
+  font-weight: 700;
+  min-width: 44px;
+}
+
+.eventWhere {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  flex: 1;
+}
+
+.eventWhen {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.issue {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  padding: var(--sp-3);
+  border: 1px solid var(--warn-border);
+  background: var(--warn-soft);
+  border-radius: var(--radius);
+}
+
+.issueBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.issueKind {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--warn-text);
+}
+
+.issueMsg {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+.issueDetail {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.meta {
+  margin-top: var(--sp-5);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  display: flex;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  font-size: var(--fs-sm);
+  color: var(--error-text);
+}

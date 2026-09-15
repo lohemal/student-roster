@@ -12,7 +12,8 @@
     "app:build": "tauri build",
     "app:sandbox": "tauri dev --config src-tauri/tauri.sandbox.conf.json",
     "check:model": "node --experimental-strip-types --no-warnings scripts/check-format.ts",
-    "version:set": "node scripts/set-version.mjs"
+    "version:set": "node scripts/set-version.mjs",
+    "seed": "node scripts/seed-sandbox.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",

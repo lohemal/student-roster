@@ -1,0 +1,121 @@
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.filterRow {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search {
+  position: relative;
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding-left: 32px;
+}
+
+.clearBtn {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+}
+
+.clearBtn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.compact {
+  min-width: 108px;
+  flex: 0 0 auto;
+}
+
+.advanced {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.summaryCount {
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.summarySpacer {
+  flex: 1;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.pageInfo {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  min-width: 78px;
+  text-align: center;
+}
+
+.issueDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.nameCell {
+  font-weight: 600;
+}
+
+.addrCell {
+  max-width: 260px;
+}
+
+.loadingRow td {
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--sp-6) !important;
+}

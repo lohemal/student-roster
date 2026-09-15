@@ -1,0 +1,74 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.sectionTitle {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--sp-3);
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+/* 성별 · 상태처럼 선택지가 적은 것은 버튼으로 고른다 (클릭 한 번) */
+.choice {
+  display: flex;
+  gap: 6px;
+}
+
+.choiceBtn {
+  flex: 1;
+  height: var(--control-h);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: var(--fs-base);
+}
+
+.choiceBtn:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.choiceOn,
+.choiceOn:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary-text);
+}
+
+.birthPreview {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  min-height: 16px;
+}
+
+.birthWarn {
+  color: var(--warn-text);
+}

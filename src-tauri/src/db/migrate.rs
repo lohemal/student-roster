@@ -111,6 +111,7 @@ mod tests {
             "address_rules",
             "students",
             "enrollments",
+            "enrollment_events",
             "graduations",
             "sibling_links",
             "issues",

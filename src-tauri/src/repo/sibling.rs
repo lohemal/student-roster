@@ -311,7 +311,17 @@ fn together_now(c: &Connection, student_id: i64, school_year: i32) -> AppResult<
 }
 
 /// 형제 이름표 뒤에 붙일 말. 함께 다니고 있으면 None.
+/// 졸업을 먼저 본다 — 졸업생은 그 뒤 학년도에 학적이 없으므로 그냥 두면
+/// '지난 학년도' 로 보인다. 왜 함께 다니지 않는지를 바로 말해야 한다.
 fn partner_note(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Option<String>> {
+    let graduated: i64 = c.query_row(
+        "SELECT COUNT(*) FROM graduations WHERE student_id = ?1 AND school_year <= ?2",
+        params![student_id, school_year],
+        |r| r.get(0),
+    )?;
+    if graduated > 0 {
+        return Ok(Some("졸업".into()));
+    }
     Ok(match status_in_year(c, student_id, school_year)? {
         Some(s) if s == "TRANSFER_OUT" => Some("전출".into()),
         Some(_) => None,

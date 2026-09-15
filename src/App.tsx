@@ -6,14 +6,15 @@ import { appApi } from '@/ipc/app'
 import { errorDetail, errorMessage } from '@/ipc/invoke'
 import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
-import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { AddressRulesPage } from '@/pages/AddressRulesPage'
 import { ExportPage } from '@/pages/ExportPage'
+import { GraduatesPage } from '@/pages/GraduatesPage'
 import { ImportPage } from '@/pages/ImportPage'
 import { IssuesPage } from '@/pages/IssuesPage'
 import { StatsPage } from '@/pages/StatsPage'
 import { TransferInPage } from '@/pages/TransferInPage'
 import { TransferOutPage } from '@/pages/TransferOutPage'
+import { YearTransitionPage } from '@/pages/YearTransitionPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { StudentsPage } from '@/pages/StudentsPage'
 import { WelcomePage } from '@/pages/WelcomePage'
@@ -82,26 +83,8 @@ export function App() {
           <Route path="/issues" element={<IssuesPage />} />
           <Route path="/address-rules" element={<AddressRulesPage />} />
           <Route path="/stats" element={<StatsPage />} />
-          <Route
-            path="/year-transition"
-            element={
-              <PlaceholderPage
-                title="학년도 전환"
-                phase={9}
-                description="반배정·신입생 자료로 다음 학년도를 미리 보고 생성합니다."
-              />
-            }
-          />
-          <Route
-            path="/graduates"
-            element={
-              <PlaceholderPage
-                title="졸업생"
-                phase={9}
-                description="학년도별 졸업생을 조회하고 내보냅니다."
-              />
-            }
-          />
+          <Route path="/year-transition" element={<YearTransitionPage />} />
+          <Route path="/graduates" element={<GraduatesPage />} />
           <Route path="/export" element={<ExportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

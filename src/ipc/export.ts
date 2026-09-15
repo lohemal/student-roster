@@ -4,9 +4,10 @@ import type { ListFilter } from './student'
 /**
  * 어떤 양식으로 내보낼지.
  *
- * 셋은 **같은 엔진**을 쓴다. 다른 것은 열과 파일을 나누는 방법뿐이다.
+ * 넷은 **같은 엔진**을 쓴다. 다른 것은 열과 파일을 나누는 방법뿐이다.
+ * `PROMOTION` 은 학년도 전환의 진급 배정 양식이라 내보내기 화면에는 두지 않는다.
  */
-export type ExportPreset = 'CUSTOM' | 'SCHOOLJONGI' | 'ALIME'
+export type ExportPreset = 'CUSTOM' | 'SCHOOLJONGI' | 'ALIME' | 'PROMOTION'
 
 /**
  * 뽑은 학생을 **몇 개 파일로 나눌지**.

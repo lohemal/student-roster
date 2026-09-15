@@ -6,6 +6,7 @@ mod export;
 mod import;
 mod job;
 mod repo;
+mod transition;
 
 use std::sync::Arc;
 
@@ -13,11 +14,14 @@ use tauri::Manager;
 
 use crate::db::Db;
 use crate::import::SessionStore;
+use crate::transition::AssignStore;
 
 pub struct AppState {
     pub db: Arc<Db>,
     /// 분석해 둔 가져오기를 적용할 때까지 들고 있는 자리
     pub import: Arc<SessionStore>,
+    /// 읽어 둔 진급 배정 자료를 적용할 때까지 들고 있는 자리
+    pub transition: Arc<AssignStore>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -39,6 +43,7 @@ pub fn run() {
             app.manage(AppState {
                 db: Arc::new(db),
                 import: Arc::new(SessionStore::default()),
+                transition: Arc::new(AssignStore::default()),
             });
             Ok(())
         })
@@ -73,6 +78,16 @@ pub fn run() {
             commands::transfer::transfer_out,
             commands::transfer::transfer_out_cancel,
             commands::transfer::transfer_past_out,
+            // 학년도 전환 · 졸업생
+            commands::transition::transition_target,
+            commands::transition::transition_read_assign,
+            commands::transition::transition_clear_assign,
+            commands::transition::transition_preview,
+            commands::transition::transition_apply,
+            commands::transition::transition_history,
+            commands::graduation::graduation_years,
+            commands::graduation::graduation_list,
+            commands::graduation::graduation_cancel,
             // 통계
             commands::stats::stats_overview,
             // 엑셀 내보내기

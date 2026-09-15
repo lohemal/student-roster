@@ -95,6 +95,8 @@ fn build_plan(state: &State<'_, AppState>, req: &ExportRequest) -> AppResult<Exp
         Preset::Custom => preset::custom(&rows, &req.columns()?, year, req.grouping()),
         Preset::Schooljongi => preset::schooljongi(&rows, year),
         Preset::Alime => preset::alime(&rows, year, req.grouping()),
+        // 진급 배정 양식 — 학년도 전환 화면이 쓴다. 열은 사람이 고르지 않는다.
+        Preset::Promotion => preset::promotion(&rows, year),
     })
 }
 

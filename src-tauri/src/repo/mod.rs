@@ -5,6 +5,7 @@
 
 pub mod address;
 pub mod export;
+pub mod graduation;
 pub mod issue;
 pub mod renumber;
 pub mod settings;
@@ -12,3 +13,4 @@ pub mod sibling;
 pub mod stats;
 pub mod student;
 pub mod transfer;
+pub mod transition;

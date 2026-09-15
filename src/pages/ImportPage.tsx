@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { open } from '@tauri-apps/plugin-dialog'
 import {
   AlertTriangle,
@@ -91,7 +91,12 @@ export function ImportPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const settings = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get })
-  const schoolYear = settings.data?.currentYear ?? null
+  // 학년도 전환에서 신입생을 넣을 때는 다음 학년도로 넘어온다 (?year=2027&grade=1).
+  // 가져오기 엔진은 그대로 쓰고 들어갈 학년도만 달라진다.
+  const [params] = useSearchParams()
+  const askedYear = Number(params.get('year'))
+  const schoolYear =
+    Number.isFinite(askedYear) && askedYear > 2000 ? askedYear : settings.data?.currentYear ?? null
 
   const [step, setStep] = useState<Step>('file')
   const [path, setPath] = useState<string | null>(null)
@@ -99,7 +104,10 @@ export function ImportPage() {
   const [sheet, setSheet] = useState<string | null>(null)
   const [preview, setPreview] = useState<SheetPreview | null>(null)
   const [mapping, setMapping] = useState<Mapping>({})
-  const [defaultGrade, setDefaultGrade] = useState<number>(1)
+  const [defaultGrade, setDefaultGrade] = useState<number>(() => {
+    const g = Number(params.get('grade'))
+    return Number.isFinite(g) && g >= 1 && g <= 6 ? g : 1
+  })
   const [analysis, setAnalysis] = useState<AnalyzeResponse | null>(null)
   const [tab, setTab] = useState<ReviewTab>('all')
   const [doAdd, setDoAdd] = useState(true)

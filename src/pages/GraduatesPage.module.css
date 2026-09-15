@@ -1,0 +1,49 @@
+/* 졸업생 — 졸업 당시 자리를 그대로 보여 주는 표 */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.compact {
+  max-width: 220px;
+}
+
+.search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.search input {
+  padding-left: 30px;
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.count {
+  margin-left: auto;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.name {
+  font-weight: 600;
+}
+
+.confirmRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}

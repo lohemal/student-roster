@@ -16,6 +16,7 @@ use crate::domain::export::{
     self, Column, Grouping, ALIME_MAX_LEN, ALIME_MAX_ROWS,
 };
 use crate::domain::label;
+use crate::domain::transition::{self as promote_rules, Col};
 use crate::repo::export::Row;
 
 use super::{ExportPlan, FilePlan, Problem, SheetPlan, Warning};
@@ -30,6 +31,8 @@ pub enum Preset {
     Schooljongi,
     /// 알림e 문자서비스 업로드 양식
     Alime,
+    /// 진급 배정 양식 — 학교가 새 반·번호를 적어 다시 넣는 파일
+    Promotion,
 }
 
 impl Preset {
@@ -38,6 +41,7 @@ impl Preset {
             Preset::Custom => "사용자 지정 Excel",
             Preset::Schooljongi => "학교종이 학생명단",
             Preset::Alime => "알림e 문자서비스",
+            Preset::Promotion => "진급 배정 양식",
         }
     }
 
@@ -47,6 +51,7 @@ impl Preset {
             Preset::Custom => "학생명단",
             Preset::Schooljongi => "학교종이_학생명단",
             Preset::Alime => "알림e_문자명단",
+            Preset::Promotion => "진급배정양식",
         }
     }
 }
@@ -482,6 +487,89 @@ pub fn alime(rows: &[Row], school_year: i32, by: Grouping) -> ExportPlan {
     }
 
     let students = files.iter().map(FilePlan::students).sum();
+    ExportPlan {
+        files,
+        students,
+        matched: rows.len(),
+        warnings,
+    }
+}
+
+// ---------------------------------------------------------------
+// 진급 배정 양식
+// ---------------------------------------------------------------
+
+/// 학교가 새 학급 편성을 적어 넣을 빈 양식.
+///
+/// **학생을 가려낼 최소 정보만 넣는다** — 보호자 이름·연락처·주소는 넣지 않는다.
+/// 이 파일은 교무실 컴퓨터를 오가므로 적을수록 안전하다.
+///
+/// 새 학년은 한 학년 올린 값을 미리 채워 둔다. 사람이 채울 칸은 **새 반과 새 번호**뿐이다.
+/// 6학년은 졸업이므로 이 양식에 넣지 않는다.
+pub fn promotion(rows: &[Row], school_year: i32) -> ExportPlan {
+    let headers: Vec<String> = Col::ALL.iter().map(|c| c.header().to_string()).collect();
+    let widths: Vec<f64> = Col::ALL.iter().map(|c| c.width()).collect();
+
+    let mates: Vec<&Row> = rows
+        .iter()
+        .filter(|r| promote_rules::next_grade(r.grade).is_some())
+        .collect();
+
+    let sheet_rows: Vec<Vec<String>> = mates
+        .iter()
+        .map(|r| {
+            let next = promote_rules::next_grade(r.grade);
+            Col::ALL
+                .iter()
+                .map(|c| match c {
+                    Col::SchoolYear => school_year.to_string(),
+                    Col::StudentId => r.student_id.to_string(),
+                    Col::OldGrade => r.grade.to_string(),
+                    Col::OldClass => text(&r.class_name),
+                    Col::OldNo => r.class_no.map(|n| n.to_string()).unwrap_or_default(),
+                    Col::Name => r.name.clone(),
+                    Col::Birth => birth_cell(r),
+                    Col::NewGrade => next.map(|g| g.to_string()).unwrap_or_default(),
+                    // 사람이 채울 칸
+                    Col::NewClass | Col::NewNo => String::new(),
+                })
+                .collect()
+        })
+        .collect();
+
+    let students = sheet_rows.len();
+    let files = if students == 0 {
+        Vec::new()
+    } else {
+        vec![FilePlan {
+            file_name: file_name(school_year, None, Preset::Promotion, None),
+            label: format!("1~5학년 {students}명"),
+            sheets: vec![SheetPlan {
+                name: "진급배정".into(),
+                headers,
+                widths,
+                rows: sheet_rows,
+            }],
+        }]
+    };
+
+    let mut warnings = Vec::new();
+    let six: Vec<Problem> = rows
+        .iter()
+        .filter(|r| promote_rules::next_grade(r.grade).is_none())
+        .map(problem)
+        .collect();
+    if !six.is_empty() {
+        warnings.push(Warning {
+            message: format!(
+                "6학년 {}명은 졸업 대상이라 이 양식에 넣지 않았습니다. 졸업에서 뺄 학생은 전환 미리보기에서 고릅니다.",
+                six.len()
+            ),
+            students: six,
+            excluded: true,
+        });
+    }
+
     ExportPlan {
         files,
         students,

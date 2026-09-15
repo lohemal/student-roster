@@ -101,6 +101,41 @@ pub fn close(c: &Connection, student_id: i64, kind: IssueKind) -> AppResult<()> 
     Ok(())
 }
 
+/// 이 종류의 열린 항목 가운데 **`keep` 에 없는 것만** 닫는다.
+///
+/// 형제처럼 상대가 여럿이면 표시도 여럿이다. 상대 하나가 사라졌을 때
+/// 나머지까지 닫아 버리지 않으려고 쓴다.
+pub fn close_except(
+    c: &Connection,
+    student_id: i64,
+    kind: IssueKind,
+    keep: &[i64],
+) -> AppResult<()> {
+    let mut st = c.prepare_cached(
+        "SELECT id, ref_id FROM issues
+          WHERE student_id = ?1 AND kind = ?2 AND status = 'OPEN'",
+    )?;
+    let rows: Vec<(i64, Option<i64>)> = st
+        .query_map(params![student_id, kind.code()], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(st);
+
+    for (id, ref_id) in rows {
+        let keep_this = ref_id.map(|r| keep.contains(&r)).unwrap_or(false);
+        if !keep_this {
+            c.execute(
+                "UPDATE issues
+                    SET status = 'RESOLVED', resolved_at = datetime('now','localtime')
+                  WHERE id = ?1",
+                [id],
+            )?;
+        }
+    }
+    Ok(())
+}
+
 /// 문제가 있으면 열고 없으면 닫는다. 자료를 고치면 표시가 저절로 사라지게 하는 장치.
 pub fn set(
     c: &Connection,

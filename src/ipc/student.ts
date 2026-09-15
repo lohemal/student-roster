@@ -1,4 +1,5 @@
 import { invoke } from './invoke'
+import type { SiblingBrief } from './sibling'
 
 export type Gender = 'M' | 'F'
 export type EnrollStatus = 'ENROLLED' | 'TRANSFER_IN' | 'TRANSFER_OUT'
@@ -22,6 +23,8 @@ export interface StudentRow {
   motherPhone: string | null
   primaryPhone: string | null
   issueCount: number
+  /** 본교 형제 — 없으면 null */
+  sibling: SiblingBrief | null
 }
 
 export interface EnrollmentRow {

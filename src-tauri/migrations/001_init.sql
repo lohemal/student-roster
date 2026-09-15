@@ -191,7 +191,7 @@ CREATE TABLE sibling_links (
   student_b        INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   status           TEXT NOT NULL CHECK (status IN ('CANDIDATE', 'CONFIRMED', 'REJECTED')),
   source           TEXT NOT NULL DEFAULT 'AUTO' CHECK (source IN ('AUTO', 'MANUAL')),
-  matched_fields   TEXT NOT NULL DEFAULT '[]',          -- JSON: ["mother_name","mother_phone"]
+  matched_fields   TEXT NOT NULL DEFAULT '[]',          -- JSON: ["motherName","motherPhone"]
   conflict_fields  TEXT NOT NULL DEFAULT '[]',          -- JSON: 값이 둘 다 있는데 다른 항목
   created_at       TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   decided_at       TEXT,

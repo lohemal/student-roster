@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FolderOpen, Plus, RefreshCw } from 'lucide-react'
+import { FolderOpen, Plus, RefreshCw, Users } from 'lucide-react'
 
 import { Badge, Button, Card, ErrorNotice, Field, Input, Notice, Page } from '@/components/ui'
 import { appApi } from '@/ipc/app'
+import { watchJob, type JobProgress } from '@/ipc/import'
 import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
+import { siblingApi, type ScanResult } from '@/ipc/sibling'
 import { guessSchoolYear, yearLabel } from '@/lib/schoolYear'
 import s from './SettingsPage.module.css'
 
@@ -53,6 +55,48 @@ export function SettingsPage() {
       qc.invalidateQueries({ queryKey: ['students'] })
     },
   })
+
+  // ---- 형제 후보 다시 찾기 ----
+  const [scanProgress, setScanProgress] = useState<JobProgress | null>(null)
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null)
+  const [scanError, setScanError] = useState<unknown>(null)
+  const [scanning, setScanning] = useState(false)
+  const stopWatch = useRef<(() => void) | null>(null)
+  useEffect(() => () => stopWatch.current?.(), [])
+
+  const rescan = useMutation({
+    mutationFn: async () => {
+      setScanError(null)
+      setScanResult(null)
+      setScanProgress(null)
+      setScanning(true)
+      const started = await siblingApi.rescan(settings.data!.currentYear!)
+      stopWatch.current?.()
+      stopWatch.current = watchJob<ScanResult>(started.jobId, {
+        onProgress: setScanProgress,
+        onDone: (r) => {
+          setScanResult(r)
+          setScanning(false)
+          qc.invalidateQueries({ queryKey: ['students'] })
+          qc.invalidateQueries({ queryKey: ['siblings'] })
+          qc.invalidateQueries({ queryKey: ['issue-summary'] })
+        },
+        onError: (e) => {
+          setScanError(e)
+          setScanning(false)
+        },
+      })
+    },
+    onError: (e) => {
+      setScanError(e)
+      setScanning(false)
+    },
+  })
+
+  const scanPct =
+    scanProgress && scanProgress.total > 0
+      ? Math.round((scanProgress.done / scanProgress.total) * 100)
+      : 0
 
   const data = settings.data
 
@@ -163,6 +207,59 @@ export function SettingsPage() {
                 disabled={recompute.isPending || data?.currentYear == null}
               >
                 확인 필요 다시 계산
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card
+          title="본교 형제 찾기"
+          description="보호자 성명·연락처 가운데 값이 있는 항목이 두 가지 이상 같은 학생을 형제 후보로 찾습니다."
+        >
+          <div className={s.stack}>
+            <Notice tone="info">
+              이미 <b>형제로 확인</b>했거나 <b>형제 아님</b>으로 정한 관계는 그대로 둡니다. 사용자가
+              내린 판단을 다시 묻지 않습니다.
+            </Notice>
+
+            {scanning && (
+              <>
+                <div className={s.row}>
+                  <span className={s.progressText}>
+                    {scanProgress?.stageLabel ?? '시작하는 중'}
+                  </span>
+                  <span className={s.progressText}>{scanPct}%</span>
+                </div>
+                <div className={s.bar}>
+                  <div className={s.barFill} style={{ width: `${scanPct}%` }} />
+                </div>
+              </>
+            )}
+
+            {scanResult && !scanning && (
+              <span className={s.saved}>
+                재학생 {scanResult.scanned.toLocaleString()}명을 살펴봐 새 형제 후보{' '}
+                {scanResult.newCandidates.toLocaleString()}쌍을 찾았습니다. 이미 확인한 관계{' '}
+                {scanResult.confirmed.toLocaleString()}쌍은 그대로 두었습니다.
+              </span>
+            )}
+            {scanResult && !scanning && scanResult.skippedValues > 0 && (
+              <Notice tone="warn">
+                같은 값을 여러 학생이 나눠 쓰고 있는 항목 {scanResult.skippedValues}가지는 사람을
+                가려내지 못해 후보를 만드는 데 쓰지 않았습니다. 학교 대표번호처럼 공용으로 적어 둔
+                연락처가 있는지 확인해 주세요.
+              </Notice>
+            )}
+
+            <ErrorNotice error={scanError} />
+            <div>
+              <Button
+                icon={Users}
+                variant="outline"
+                onClick={() => rescan.mutate()}
+                disabled={scanning || data?.currentYear == null}
+              >
+                {scanning ? '찾는 중…' : '형제 후보 다시 찾기'}
               </Button>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Trash2, Users } from 'lucide-react'
+import { AlertTriangle, Trash2 } from 'lucide-react'
 
 import {
   Badge,
@@ -17,6 +17,7 @@ import { addressApi } from '@/ipc/address'
 import { studentApi, type StudentDetail, type StudentInput } from '@/ipc/student'
 import { AddressPanel } from './AddressPanel'
 import { birthCell, genderLabel, statusBadge } from '@/lib/format'
+import { SiblingPanel } from './SiblingPanel'
 import { StudentForm, emptyStudent } from './StudentForm'
 import s from './StudentDrawer.module.css'
 
@@ -300,10 +301,11 @@ export function StudentDrawer({
       )}
 
       {d && tab === 'sibling' && (
-        <Empty
-          icon={Users}
-          title="본교 형제는 Phase 4에서 연결합니다"
-          description="보호자 성명과 연락처가 두 가지 이상 같은 학생을 찾아 형제 후보로 보여 주고, 확인하면 비어 있는 보호자 정보를 채울지 여쭤봅니다. 형제 관계는 학생끼리 연결해 두므로 진급해도 표시가 최신으로 유지됩니다."
+        <SiblingPanel
+          studentId={d.id}
+          studentName={d.name}
+          schoolYear={schoolYear}
+          onChanged={invalidate}
         />
       )}
 

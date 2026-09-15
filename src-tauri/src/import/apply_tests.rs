@@ -429,3 +429,116 @@ fn 확인_필요_건수를_결과에_담는다() {
     let total: i64 = real.iter().map(|k| k.count).sum();
     assert_eq!(out.issue_count, total, "결과와 실제 표시가 같아야 한다");
 }
+
+// ---------------------------------------------------------------
+// 형제 후보
+// ---------------------------------------------------------------
+
+/// 보호자 항목까지 들어 있는 짝짓기. 형제 판정을 보려면 네 항목이 필요하다.
+fn guardian_mapping() -> Mapping {
+    let mut m = Mapping::new();
+    m.insert(Field::Grade, 0);
+    m.insert(Field::ClassName, 1);
+    m.insert(Field::ClassNo, 2);
+    m.insert(Field::Name, 3);
+    m.insert(Field::FatherName, 4);
+    m.insert(Field::MotherName, 5);
+    m.insert(Field::FatherPhone, 6);
+    m.insert(Field::MotherPhone, 7);
+    m
+}
+
+fn apply_with_guardians(db: &Db, raw: &[Vec<String>]) -> ApplyResult {
+    let rows: Vec<ParsedRow> = raw
+        .iter()
+        .enumerate()
+        .map(|(i, cells)| row::parse(i + 2, cells, &guardian_mapping(), None, today()))
+        .collect();
+    db.write(|c| run(c, &rows, &meta(), &Choice::default(), today(), |_, _, _, _| {}))
+        .unwrap()
+}
+
+fn open_kinds(db: &Db, kind: &str) -> i64 {
+    let kind = kind.to_string();
+    db.read(|c| {
+        Ok(c.query_row(
+            "SELECT COUNT(*) FROM issues WHERE status = 'OPEN' AND kind = ?1",
+            [kind],
+            |r| r.get(0),
+        )?)
+    })
+    .unwrap()
+}
+
+#[test]
+fn 가져오기가_끝나면_형제_후보를_한_번에_찾는다() {
+    let db = db();
+    let out = apply_with_guardians(
+        &db,
+        &[
+            // 두 항목이 같은 남매 — 후보가 되어야 한다
+            line(&["1", "가람", "1", "가학생", "가보호", "나보호", "010-1000-0001", "010-1000-0002"]),
+            line(&["4", "나리", "2", "나학생", "가보호", "나보호", "010-1000-0001", "010-1000-0002"]),
+            // 한 항목만 같은 남 — 후보가 되면 안 된다
+            line(&["2", "가람", "3", "다학생", "가보호", "라보호", "010-1000-0003", "010-1000-0004"]),
+            // 보호자 정보가 없는 학생 둘 — 빈칸끼리 묶이면 안 된다
+            line(&["3", "가람", "4", "라학생", "", "", "", ""]),
+            line(&["5", "가람", "5", "마학생", "", "", "", ""]),
+        ],
+    );
+
+    assert_eq!(out.added, 5);
+    assert_eq!(out.sibling_candidates, 1, "값이 있는 항목이 둘 이상 같은 쌍만 후보다");
+
+    let links: i64 = db
+        .read(|c| Ok(c.query_row("SELECT COUNT(*) FROM sibling_links", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(links, 1);
+    assert_eq!(open_kinds(&db, "SIBLING_CANDIDATE"), 2, "두 학생 모두에게 표시한다");
+}
+
+#[test]
+fn 같은_파일을_다시_가져와도_형제_후보가_늘지_않는다() {
+    let db = db();
+    let rows = [
+        line(&["1", "가람", "1", "가학생", "가보호", "나보호", "010-1000-0001", "010-1000-0002"]),
+        line(&["4", "나리", "2", "나학생", "가보호", "나보호", "010-1000-0001", "010-1000-0002"]),
+    ];
+
+    let first = apply_with_guardians(&db, &rows);
+    assert_eq!(first.sibling_candidates, 1);
+
+    let again = apply_with_guardians(&db, &rows);
+    assert_eq!(again.sibling_candidates, 0, "이미 있는 쌍은 새 후보가 아니다");
+
+    let links: i64 = db
+        .read(|c| Ok(c.query_row("SELECT COUNT(*) FROM sibling_links", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(links, 1, "쌍은 하나뿐이다");
+    assert_eq!(open_kinds(&db, "SIBLING_CANDIDATE"), 2);
+}
+
+#[test]
+fn 가져오기는_사용자가_정한_형제_관계를_되돌리지_않는다() {
+    let db = db();
+    let rows = [
+        line(&["1", "가람", "1", "가학생", "가보호", "나보호", "010-1000-0001", "010-1000-0002"]),
+        line(&["4", "나리", "2", "나학생", "가보호", "나보호", "010-1000-0001", "010-1000-0002"]),
+    ];
+    apply_with_guardians(&db, &rows);
+
+    // 사용자가 '형제 아님' 으로 정해 둔다
+    let link_id: i64 = db
+        .read(|c| Ok(c.query_row("SELECT id FROM sibling_links", [], |r| r.get(0))?))
+        .unwrap();
+    db.write(|c| crate::repo::sibling::reject(c, link_id)).unwrap();
+
+    let again = apply_with_guardians(&db, &rows);
+    assert_eq!(again.sibling_candidates, 0);
+
+    let status: String = db
+        .read(|c| Ok(c.query_row("SELECT status FROM sibling_links", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(status, "REJECTED", "거부한 관계를 다시 묻지 않는다");
+    assert_eq!(open_kinds(&db, "SIBLING_CANDIDATE"), 0);
+}

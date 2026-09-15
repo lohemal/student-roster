@@ -1,0 +1,187 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.groupTitle {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---------- 관계 한 줄 ---------- */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.cardCandidate {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+
+.cardConfirmed {
+  border-color: var(--success-border);
+  background: var(--success-soft);
+}
+
+.cardRejected {
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.name {
+  font-weight: 700;
+  font-size: var(--fs-md);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 판단 근거 ---------- */
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reason {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: var(--fs-sm);
+}
+
+.reasonLabel {
+  min-width: 82px;
+  color: var(--text-muted);
+}
+
+.ok {
+  color: var(--success-text);
+  font-weight: 600;
+}
+
+.bad {
+  color: var(--error-text);
+}
+
+.values {
+  color: var(--text-2);
+  word-break: break-all;
+}
+
+.matchCount {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+/* ---------- 버튼 줄 ---------- */
+
+.actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+/* ---------- 가져오기 ---------- */
+
+.fill {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--primary-border);
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+}
+
+.fillHead {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--primary-text);
+}
+
+.fillItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.fillLabel {
+  min-width: 82px;
+  color: var(--text-muted);
+}
+
+.fillValue {
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.conflictBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--sp-3);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+}
+
+.conflictHead {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--warn-text);
+}
+
+.compareRow {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 4px 8px;
+  font-size: var(--fs-sm);
+  align-items: baseline;
+}
+
+.compareSide {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.sideTag {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  min-width: 34px;
+}
+
+.empty {
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+}

@@ -117,6 +117,8 @@ export interface ApplyResult {
   unchanged: number
   skipped: number
   issueCount: number
+  /** 이번 가져오기 뒤에 새로 찾은 형제 후보 쌍 */
+  siblingCandidates: number
   importId: number
 }
 

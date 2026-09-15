@@ -10,8 +10,9 @@ use chrono::NaiveDate;
 use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::{address, birth, korean, label, phone};
+use crate::domain::{address, birth, korean, label, phone, sibling};
 use crate::repo::address as addr_repo;
+use crate::repo::sibling as sibling_repo;
 use crate::error::{AppError, AppResult};
 use crate::repo::issue::{self, IssueKind, IssueRow};
 
@@ -106,6 +107,8 @@ pub struct StudentRow {
     pub mother_phone: Option<String>,
     pub primary_phone: Option<String>,
     pub issue_count: i64,
+    /// 확정된 본교 형제. 없으면 None
+    pub sibling: Option<sibling_repo::SiblingBrief>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -358,7 +361,7 @@ pub fn update(
         )));
     }
 
-    sync_issues(c, student_id, input.school_year, today)?;
+    sync_issues_with_siblings(c, student_id, input.school_year, today)?;
     Ok(())
 }
 
@@ -648,6 +651,108 @@ pub fn sync_issues(
     };
     issue::set(c, student_id, IssueKind::Address, addr_problem)?;
 
+    // --- 형제 ---
+    //
+    // 상대가 여럿일 수 있으므로 관계마다 한 줄씩 띄우고(`ref_id` = 관계 번호),
+    // 더는 해당하지 않는 줄만 닫는다.
+    //
+    // 형제 관계와 보호자 정보 일치는 다른 문제다. 연락처가 달라도 형제일 수 있으므로
+    // 확정 관계를 풀지 않고 '확인해 달라' 고만 한다.
+    let mine = sibling_repo::guardians_of(c, student_id)?;
+    let mut keep_candidate: Vec<i64> = Vec::new();
+    let mut keep_fill: Vec<i64> = Vec::new();
+    let mut keep_conflict: Vec<i64> = Vec::new();
+
+    for link in sibling_repo::links_of(c, student_id)? {
+        let other = link.other(student_id);
+        match link.status.as_str() {
+            "CANDIDATE" => {
+                let label = sibling_repo::student_label_of(c, other, school_year)?;
+                issue::open(
+                    c,
+                    student_id,
+                    IssueKind::SiblingCandidate,
+                    &format!("{label} 학생과 형제인지 확인해 주세요."),
+                    Some(&format!("{{\"otherStudentId\":{other}}}")),
+                    Some(link.id),
+                )?;
+                keep_candidate.push(link.id);
+            }
+            "CONFIRMED" => {
+                let theirs = sibling_repo::guardians_of(c, other)?;
+                let label = sibling_repo::student_label_of(c, other, school_year)?;
+
+                // 형제에게는 있고 나에게는 없는 항목 — 가져올 수 있다
+                let fillable = sibling::fillable(&mine, &theirs);
+                if !fillable.is_empty() {
+                    let names: Vec<&str> = fillable.iter().map(|f| f.label()).collect();
+                    issue::open(
+                        c,
+                        student_id,
+                        IssueKind::GuardianFill,
+                        &format!(
+                            "형제 {label} 학생에게 등록된 {}을(를) 가져올 수 있습니다.",
+                            names.join(", ")
+                        ),
+                        Some(&sibling::to_json(&fillable)),
+                        Some(link.id),
+                    )?;
+                    keep_fill.push(link.id);
+                }
+
+                // 양쪽 다 값이 있는데 다른 항목 — 어느 쪽이 맞는지 정하지 않는다
+                let conflicts = sibling::compare(&mine, &theirs).conflicts;
+                if !conflicts.is_empty() {
+                    let names: Vec<&str> = conflicts.iter().map(|f| f.label()).collect();
+                    issue::open(
+                        c,
+                        student_id,
+                        IssueKind::GuardianConflict,
+                        &format!("형제 {label} 학생과 {}이(가) 서로 다릅니다.", names.join(", ")),
+                        Some(&sibling::to_json(&conflicts)),
+                        Some(link.id),
+                    )?;
+                    keep_conflict.push(link.id);
+                }
+            }
+            _ => {} // REJECTED — 사용자가 이미 정했으므로 다시 묻지 않는다
+        }
+    }
+
+    issue::close_except(c, student_id, IssueKind::SiblingCandidate, &keep_candidate)?;
+    issue::close_except(c, student_id, IssueKind::GuardianFill, &keep_fill)?;
+    issue::close_except(c, student_id, IssueKind::GuardianConflict, &keep_conflict)?;
+
+    Ok(())
+}
+
+/// 이 학생과 **관계가 있는 학생까지** 확인 필요를 다시 맞춘다.
+///
+/// 보호자 정보를 고치면 상대 쪽 표시도 달라진다. A 의 연락처를 고쳐 B 와 같아졌으면
+/// B 의 '정보 불일치' 도 닫혀야 한다. 한 단계만 따라간다(되돌이 없음).
+pub fn sync_issues_with_siblings(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    today: NaiveDate,
+) -> AppResult<()> {
+    let partners: Vec<i64> = sibling_repo::links_of(c, student_id)?
+        .into_iter()
+        .map(|l| l.other(student_id))
+        .collect();
+
+    sync_issues(c, student_id, school_year, today)?;
+    for other in partners {
+        // 상대가 그 학년도에 없으면(전출·졸업) 건너뛴다
+        let in_year: i64 = c.query_row(
+            "SELECT COUNT(*) FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
+            params![other, school_year],
+            |r| r.get(0),
+        )?;
+        if in_year > 0 {
+            sync_issues(c, other, school_year, today)?;
+        }
+    }
     Ok(())
 }
 
@@ -832,6 +937,8 @@ fn map_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<StudentRow> {
         primary_phone: r.get(13)?,
         issue_count: r.get(14)?,
         graduated: r.get::<_, i64>(15)? > 0,
+        // 형제 표시는 목록을 읽은 뒤에 채운다 (지금 학적으로 이름표를 만들어야 한다)
+        sibling: None,
     })
 }
 
@@ -864,9 +971,15 @@ pub fn list(c: &Connection, f: &ListFilter, limit: i64, offset: i64) -> AppResul
     args.push(Value::Integer(offset));
 
     let mut st = c.prepare(&sql)?;
-    let rows = st
+    let mut rows = st
         .query_map(params_from_iter(args.iter()), map_row)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(st);
+
+    // 형제 이름표는 저장해 두지 않는다 — 진급하면 바뀌어야 하므로 볼 때마다 만든다
+    for row in rows.iter_mut() {
+        row.sibling = sibling_repo::brief(c, row.id, f.school_year)?;
+    }
 
     Ok(ListPage { rows, total })
 }

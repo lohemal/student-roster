@@ -79,6 +79,13 @@ pub fn run() {
             commands::address::address_status,
             commands::address::address_set_manual,
             commands::address::address_reapply,
+            // 본교 형제
+            commands::sibling::sibling_list,
+            commands::sibling::sibling_confirm,
+            commands::sibling::sibling_reject,
+            commands::sibling::sibling_reset,
+            commands::sibling::sibling_fill,
+            commands::sibling::sibling_rescan,
         ])
         .run(tauri::generate_context!())
         .expect("학생명단 관리 시스템을 시작하지 못했습니다.");

@@ -7,4 +7,5 @@ pub mod app;
 pub mod import;
 pub mod issue;
 pub mod settings;
+pub mod sibling;
 pub mod student;

@@ -192,11 +192,14 @@ for (let i = 0; i < COUNT; i++) {
   } else {
     const [fp, fd] = phone()
     const [mp, md] = phone()
+    // 보호자 이름도 학생만큼 다양해야 한다. 이름이 몇 가지뿐이면 남남인 학생끼리
+    // 부·모 성명이 우연히 겹쳐 형제 후보가 실제보다 훨씬 많이 나온다.
+    const hasFatherPhone = chance(0.85)
     family = {
-      fatherName: pick([...SURNAMES]) + '철수',
-      motherName: pick([...SURNAMES]) + '영희',
-      fatherPhone: chance(0.85) ? fp : null,
-      fatherDigits: chance(0.85) ? fd : null,
+      fatherName: makeName('M'),
+      motherName: makeName('F'),
+      fatherPhone: hasFatherPhone ? fp : null,
+      fatherDigits: hasFatherPhone ? fd : null,
       motherPhone: mp,
       motherDigits: md,
     }
@@ -229,8 +232,10 @@ for (let i = 0; i < COUNT; i++) {
   const noAddress = chance(0.02)
   const noPhone = chance(0.02)
 
-  const primary = chance(0.7) ? family.motherPhone : family.fatherPhone
-  const primaryDigits = chance(0.7) ? family.motherDigits : family.fatherDigits
+  // 한 번만 뽑는다. 따로 뽑으면 보이는 번호와 찾기용 숫자가 서로 다른 사람 것이 된다.
+  const primaryIsMother = chance(0.7)
+  const primary = primaryIsMother ? family.motherPhone : family.fatherPhone
+  const primaryDigits = primaryIsMother ? family.motherDigits : family.fatherDigits
 
   insStudent.run(
     name,
@@ -273,6 +278,125 @@ db.exec(`
          primary_phone = '010-1234-5678', primary_phone_digits = '01012345678'
    WHERE id = (SELECT MIN(id) FROM students)`)
 
+// ---- 형제 탐색 시험용 -----------------------------------------------------
+//
+// 형제 판정의 경계를 눈으로 확인하려고 일부러 짜 둔 학생들.
+// 이름·연락처·주소 모두 가상의 값이다. 위 무작위 자료와 겹치지 않도록
+// 연락처 끝자리를 0 으로 시작하게 두었다 — 무작위로는 나올 수 없는 모양이다.
+
+const digitsOf = (v) => (v ? v.replace(/\D/g, '') : null)
+
+/** 보호자 네 항목. 빈칸은 null 로 둔다. */
+const G = (fatherName, motherName, fatherPhone, motherPhone) => ({
+  fatherName,
+  motherName,
+  fatherPhone,
+  motherPhone,
+})
+
+function addFixture(name, gender, grade, g, note) {
+  const className = pick(CLASSES[grade])
+  const key = `${grade}-${className}`
+  const no = (counters.get(key) ?? 0) + 1
+  counters.set(key, no)
+
+  const [birthRaw, birthIso] = birth(grade)
+  const address = `○○시 가온로 101, 105동 ${100 + (no % 15)}호(가온마을5단지)`
+  const primary = g.motherPhone ?? g.fatherPhone
+
+  insStudent.run(
+    name,
+    gender,
+    birthRaw,
+    birthIso,
+    address,
+    address,
+    g.fatherName,
+    g.motherName,
+    g.fatherPhone,
+    digitsOf(g.fatherPhone),
+    g.motherPhone,
+    digitsOf(g.motherPhone),
+    primary,
+    digitsOf(primary),
+    note,
+  )
+  const id = db.prepare('SELECT last_insert_rowid() AS id').get().id
+  insEnroll.run(id, YEAR, grade, className, no, 'ENROLLED')
+  insEvent.run(id, YEAR, 'ENROLL', grade, className, no)
+  made++
+  return id
+}
+
+const insLink = db.prepare(`
+  INSERT INTO sibling_links(
+    student_a, student_b, status, source, matched_fields, conflict_fields, decided_at)
+  VALUES (?,?,?,'AUTO',?,'[]',datetime('now','localtime'))`)
+
+/** 사용자가 이미 판단해 둔 관계를 미리 만들어 둔다 */
+function link(a, b, status, matched) {
+  insLink.run(Math.min(a, b), Math.max(a, b), status, JSON.stringify(matched))
+}
+
+db.exec('BEGIN')
+
+// A — 네 항목 모두 같은 확실한 형제 2명
+const gA = G('강바다', '임소라', '010-9901-0001', '010-9901-0002')
+addFixture('강한별', 'F', 3, gA, '형제 시험 A — 네 항목 모두 같음')
+addFixture('강두별', 'M', 5, gA, '형제 시험 A — 네 항목 모두 같음')
+
+// B — 형제 3명. 쌍으로 세면 3쌍이 나와야 한다.
+//     가운데 학생은 부 연락처가 비어 있어 가져오기 시험에도 쓴다.
+const gB = G('문산들', '배가온', '010-9902-0001', '010-9902-0002')
+addFixture('문한별', 'M', 1, gB, '형제 시험 B — 형제 3명(3쌍)')
+addFixture('문두별', 'F', 4, G(gB.fatherName, gB.motherName, null, gB.motherPhone),
+  '형제 시험 B — 형제 3명, 부 연락처 빈칸')
+addFixture('문세별', 'M', 6, gB, '형제 시험 B — 형제 3명(3쌍)')
+
+// C — 부 성명 하나만 같다. 한 항목만으로는 후보가 되면 안 된다.
+addFixture('오한별', 'M', 2, G('노가람', '서미르', '010-9903-0001', '010-9903-0002'),
+  '형제 시험 C — 한 항목만 같음(후보가 되면 안 됨)')
+addFixture('정두별', 'F', 5, G('노가람', '채봄이', '010-9903-0003', '010-9903-0004'),
+  '형제 시험 C — 한 항목만 같음(후보가 되면 안 됨)')
+
+// D — 모 연락처 하나만 같다. 역시 후보가 되면 안 된다.
+addFixture('한한별', 'F', 1, G('우다온', '신여울', '010-9904-0001', '010-9904-0009'),
+  '형제 시험 D — 연락처 하나만 같음(후보가 되면 안 됨)')
+addFixture('심두별', 'M', 3, G('곽나루', '차슬기', '010-9904-0002', '010-9904-0009'),
+  '형제 시험 D — 연락처 하나만 같음(후보가 되면 안 됨)')
+
+// E — 값이 있는 항목이 딱 2개고 둘 다 같다. 빈칸은 세지 않는다.
+const gE = G('백벼리', null, '010-9905-0001', null)
+addFixture('백한별', 'M', 2, gE, '형제 시험 E — 정확히 2개 일치(빈칸은 세지 않음)')
+addFixture('백두별', 'F', 6, gE, '형제 시험 E — 정확히 2개 일치(빈칸은 세지 않음)')
+
+// F — 3개가 같고 모 연락처만 다르다. 후보이면서 불일치가 함께 보여야 한다.
+addFixture('구한별', 'F', 1, G('구나래', '유하람', '010-9906-0001', '010-9906-0002'),
+  '형제 시험 F — 3개 일치 1개 불일치')
+addFixture('구두별', 'M', 5, G('구나래', '유하람', '010-9906-0001', '010-9906-0008'),
+  '형제 시험 F — 3개 일치 1개 불일치')
+
+// G — 보호자 정보가 하나도 없다. 빈칸끼리 묶이면 온 학교가 형제가 된다.
+const gNone = G(null, null, null, null)
+addFixture('남한별', 'M', 4, gNone, '형제 시험 G — 보호자 정보 없음(후보가 되면 안 됨)')
+addFixture('하두별', 'F', 2, gNone, '형제 시험 G — 보호자 정보 없음(후보가 되면 안 됨)')
+
+// H — 네 항목이 같지만 사용자가 '형제 아님'으로 정해 둔 쌍.
+//     다시 찾아도 후보로 되살아나면 안 된다.
+const gH = G('전미르', '손보라', '010-9907-0001', '010-9907-0002')
+const h1 = addFixture('전한별', 'F', 3, gH, '형제 시험 H — 형제 아님으로 정해 둠')
+const h2 = addFixture('전두별', 'M', 6, gH, '형제 시험 H — 형제 아님으로 정해 둠')
+link(h1, h2, 'REJECTED', ['fatherName', 'motherName', 'fatherPhone', 'motherPhone'])
+
+// I — 이미 확정한 형제. 한쪽에 빈칸이 있어 [가져오기]를 눌러 볼 수 있다.
+const i1 = addFixture('권한별', 'M', 2, G('권여울', '황초롱', '010-9908-0001', '010-9908-0002'),
+  '형제 시험 I — 확정 + 가져올 보호자 정보 있음')
+const i2 = addFixture('권두별', 'F', 4, G('권여울', null, '010-9908-0001', null),
+  '형제 시험 I — 확정, 모 성명·모 연락처가 빈칸')
+link(i1, i2, 'CONFIRMED', ['fatherName', 'fatherPhone'])
+
+db.exec('COMMIT')
+
 const after = db.prepare('SELECT COUNT(*) AS n FROM students').get().n
 const enrolled = db
   .prepare(
@@ -292,5 +416,12 @@ console.log("  · '라온로 404' '마온로 505' 는 도로명 규칙이 있어
 console.log("  · '가온빌라' 는 포함 규칙으로 '주택' 에 넣을 수 있습니다")
 console.log("  · '사온로' 는 단서가 없어 미분류로 남습니다")
 console.log('연락처 검색 시험: 1234 / 5678 (첫 번째 학생)')
+console.log('')
+console.log('형제 탐색 시험 (이름이 ○한별·○두별·○세별 인 학생 19명):')
+console.log('  · A 네 항목 모두 같음 · B 형제 3명(3쌍) · E 정확히 2개 일치 → 후보로 올라와야 합니다')
+console.log('  · C 한 항목만 같음 · D 연락처만 같음 · G 보호자 정보 없음 → 후보가 되면 안 됩니다')
+console.log('  · F 3개 일치 1개 불일치 → 후보이면서 불일치가 함께 보여야 합니다')
+console.log("  · H 는 '형제 아님', I 는 '확정'으로 미리 정해 두었습니다 (I 는 가져오기 시험용)")
+console.log("  · 설정 화면의 [형제 후보 다시 찾기] 를 눌러야 후보가 만들어집니다")
 
 db.close()

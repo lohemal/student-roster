@@ -405,13 +405,14 @@ export function StudentsPage() {
               <th>주소</th>
               <th style={{ width: 92 }}>주소 분류</th>
               <th style={{ width: 130 }}>주보호자</th>
+              <th style={{ width: 112 }}>본교 형제</th>
               <th style={{ width: 132 }}>상태</th>
             </tr>
           </thead>
           <tbody>
             {list.isFetching && rows.length === 0 && (
               <tr className={s.loadingRow}>
-                <td colSpan={10}>불러오는 중…</td>
+                <td colSpan={11}>불러오는 중…</td>
               </tr>
             )}
             {rows.map((r) => {
@@ -439,6 +440,9 @@ export function StudentsPage() {
                     {r.addressCategory ?? <span className={tableClass.muted}>미분류</span>}
                   </td>
                   <td>{r.primaryPhone ?? ''}</td>
+                  <td className={s.siblingCell}>
+                    {r.sibling ? r.sibling.text : ''}
+                  </td>
                   <td>
                     <Badge tone={st.tone}>{st.label}</Badge>
                     {ib && (

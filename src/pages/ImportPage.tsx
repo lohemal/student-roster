@@ -660,11 +660,26 @@ export function ImportPage() {
                 <span>적용 제외</span>
                 <span className={s.resultNum}>{result.skipped.toLocaleString()}줄</span>
               </div>
+              {result.siblingCandidates > 0 && (
+                <div className={s.resultRow}>
+                  <span>새 형제 후보</span>
+                  <span className={s.resultNum}>
+                    {result.siblingCandidates.toLocaleString()}쌍
+                  </span>
+                </div>
+              )}
               <div className={s.resultRow}>
                 <span>확인 필요</span>
                 <span className={s.resultNum}>{result.issueCount.toLocaleString()}건</span>
               </div>
             </div>
+
+            {result.siblingCandidates > 0 && (
+              <div className={s.resultHint}>
+                보호자 정보가 비슷한 학생을 찾았습니다. 학생 상세의 [형제] 탭에서 형제가 맞는지
+                확인해 주세요.
+              </div>
+            )}
 
             <div className={s.row} style={{ marginTop: 16 }}>
               <Button variant="primary" onClick={() => nav('/students')}>

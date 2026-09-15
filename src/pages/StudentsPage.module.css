@@ -119,3 +119,12 @@
   color: var(--text-muted);
   padding: var(--sp-6) !important;
 }
+
+/* 본교 형제 — 이름표 한 줄이 길어도 표가 밀리지 않게 */
+.siblingCell {
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}

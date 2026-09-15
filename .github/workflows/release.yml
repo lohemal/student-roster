@@ -27,31 +27,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 서명 키나 실제 개인정보가 저장소에 들어갔으면 여기서 멈춘다
-      - name: 비밀·개인정보 검사
+      # 서명 키나 토큰이 저장소에 들어갔으면 여기서 멈춘다.
+      #
+      # 찾는 글자를 조각으로 이어 붙이는 까닭: 여기 그대로 적어 두면 이 파일 자신이
+      # 걸려서 릴리스가 늘 실패한다.
+      - name: 비밀 검사
         shell: pwsh
         run: |
-          $bad = @()
-          $keys = Get-ChildItem -Recurse -File -Include *.key,*.pem,*.pfx,*.p12 `
-                    -Exclude node_modules,target -ErrorAction SilentlyContinue
-          foreach ($k in $keys) { $bad += "키 파일: $($k.FullName)" }
+          $skip = '[\\/](node_modules|target|\.git|dist)[\\/]'
+          $all  = Get-ChildItem -Recurse -File -ErrorAction SilentlyContinue |
+                  Where-Object { $_.FullName -notmatch $skip }
 
-          $patterns = 'untrusted comment: minisign encrypted secret key',
-                      'BEGIN RSA PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY',
-                      'ghp_', 'github_pat_'
-          $files = Get-ChildItem -Recurse -File -ErrorAction SilentlyContinue |
-                   Where-Object { $_.FullName -notmatch '\\(node_modules|target|\.git|dist)\\' -and $_.Length -lt 2MB }
-          foreach ($f in $files) {
+          $bad = @()
+          foreach ($k in $all | Where-Object { $_.Extension -in '.key', '.pem', '.pfx', '.p12' }) {
+            $bad += "키 파일: $($k.FullName)"
+          }
+
+          $needles = @(
+            'untrusted comment: minisign encrypted secret ' + 'key',
+            'BEGIN RSA PRIVATE ' + 'KEY',
+            'BEGIN OPENSSH PRIVATE ' + 'KEY',
+            'ghp' + '_',
+            'github' + '_pat_'
+          )
+          foreach ($f in $all | Where-Object { $_.Length -lt 2MB }) {
             $text = Get-Content $f.FullName -Raw -ErrorAction SilentlyContinue
-            foreach ($p in $patterns) {
-              if ($text -and $text.Contains($p)) { $bad += "$($f.FullName): $p" }
+            if (-not $text) { continue }
+            foreach ($n in $needles) {
+              if ($text.Contains($n)) { $bad += "$($f.FullName): $n" }
             }
           }
+
           if ($bad.Count -gt 0) {
             $bad | ForEach-Object { Write-Host "::error::$_" }
             throw "저장소에 들어가면 안 되는 것이 있습니다."
           }
-          Write-Host "검사 통과"
+          Write-Host "검사 통과 — $($all.Count)개 파일"
 
       - name: Node 준비
         uses: actions/setup-node@v4

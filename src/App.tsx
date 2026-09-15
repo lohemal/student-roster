@@ -8,6 +8,7 @@ import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { AddressRulesPage } from '@/pages/AddressRulesPage'
+import { ExportPage } from '@/pages/ExportPage'
 import { ImportPage } from '@/pages/ImportPage'
 import { IssuesPage } from '@/pages/IssuesPage'
 import { StatsPage } from '@/pages/StatsPage'
@@ -101,16 +102,7 @@ export function App() {
               />
             }
           />
-          <Route
-            path="/export"
-            element={
-              <PlaceholderPage
-                title="파일 내보내기"
-                phase={8}
-                description="원하는 항목만 고른 Excel 명단과 외부 시스템 업로드 양식을 만듭니다."
-              />
-            }
-          />
+          <Route path="/export" element={<ExportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
 

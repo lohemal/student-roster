@@ -963,6 +963,13 @@ impl Where {
 /// 연락처 부분 검색에 필요한 최소 자릿수. 이보다 짧으면 온 학교가 걸린다.
 const PHONE_MIN: usize = 3;
 
+/// 내보내기도 **같은 조건**으로 학생을 뽑는다. 명단에서 48명이 보였는데 파일에
+/// 47명이 들어 있으면 둘 다 못 쓴다.
+pub fn build_where_pub(f: &ListFilter) -> (Vec<String>, Vec<Value>) {
+    let w = build_where(f);
+    (w.sql, w.args)
+}
+
 fn build_where(f: &ListFilter) -> Where {
     let mut w = Where {
         sql: vec!["e.school_year = ?".into()],

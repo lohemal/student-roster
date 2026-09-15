@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft,
   ChevronRight,
+  Download,
   ListFilter as FilterIcon,
   FileSpreadsheet,
   Search,
@@ -203,6 +204,14 @@ export function StudentsPage() {
             onClick={() => nav('/students/import')}
           >
             가져오기
+          </Button>
+          {/* 지금 걸어 둔 조건 그대로 내보내기 화면으로. 조건을 두 번 만들지 않는다. */}
+          <Button
+            variant="outline"
+            icon={Download}
+            onClick={() => nav('/export', { state: { filter } })}
+          >
+            내보내기
           </Button>
           <Button variant="primary" icon={UserPlus} onClick={() => setOpenStudent(null)}>
             학생 등록

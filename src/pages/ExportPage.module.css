@@ -1,0 +1,279 @@
+/* 파일 내보내기 — 조건 → 양식 → 미리보기 순서로 읽히게 둔다 */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.compact {
+  max-width: 140px;
+}
+
+.count {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.count strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.handoff {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.handoff span {
+  flex: 1;
+}
+
+/* ---------- 양식 ---------- */
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.preset {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.preset:hover {
+  border-color: var(--primary);
+}
+
+.presetOn {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+  background: var(--primary-soft);
+}
+
+.presetTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.presetDesc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ---------- 열 고르기 ---------- */
+
+.columnPick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.colChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.colChip:hover {
+  border-color: var(--primary);
+}
+
+.colChipOn {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.personal {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.chosen {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chosenItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.chosenNo {
+  width: 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.chosenLabel {
+  flex: 1;
+  font-size: 13px;
+}
+
+/* ---------- 파일 생성 단위 ---------- */
+
+.groupings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.group {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.groupOn {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.groupLabel {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.groupDesc {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- 미리보기 ---------- */
+
+.previewHead {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.nameChip {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.nameChip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.nameMore {
+  align-self: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.confirmRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.done {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--success-border);
+  border-radius: 10px;
+  background: var(--success-soft);
+}
+
+.doneIcon {
+  color: var(--success);
+  flex-shrink: 0;
+}
+
+.done > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.doneTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--success-text);
+}
+
+.donePath {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.foot {
+  margin: 4px 2px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+}

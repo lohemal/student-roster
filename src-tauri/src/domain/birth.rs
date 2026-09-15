@@ -205,6 +205,16 @@ pub fn format_display(date: NaiveDate) -> String {
 }
 
 /// DB 저장 형식 `2017-03-15`
+/// 저장된 `YYYY-MM-DD` 를 화면 표시(`17.03.15.`)로.
+///
+/// 날짜로 읽지 못한 값은 None — 부르는 쪽이 원본을 그대로 쓰게 한다.
+/// **틀린 값을 임의로 보정하지 않는다.**
+pub fn display_of_iso(iso: &str) -> Option<String> {
+    NaiveDate::parse_from_str(iso.trim(), "%Y-%m-%d")
+        .ok()
+        .map(format_display)
+}
+
 pub fn format_iso(date: NaiveDate) -> String {
     date.format("%Y-%m-%d").to_string()
 }

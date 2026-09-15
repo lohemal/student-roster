@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod domain;
 pub mod error;
+mod export;
 mod import;
 mod job;
 mod repo;
@@ -74,6 +75,11 @@ pub fn run() {
             commands::transfer::transfer_past_out,
             // 통계
             commands::stats::stats_overview,
+            // 엑셀 내보내기
+            commands::export::export_columns,
+            commands::export::export_preview,
+            commands::export::export_run,
+            commands::export::export_open_folder,
             // 엑셀 가져오기
             commands::import::import_inspect,
             commands::import::import_preview,

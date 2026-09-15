@@ -686,6 +686,20 @@ pub fn scan_for_student(
     Ok(new_candidates)
 }
 
+/// 지금 함께 다니는 확정 형제의 이름표.
+///
+/// 내보내기가 쓴다. 전출했거나 지난 학년도 형제는 넣지 않는다 — 명단에 적힌
+/// '본교 형제' 는 지금 같이 다니는 학생을 뜻해야 한다.
+pub fn labels_of(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Vec<String>> {
+    let mut out = Vec::new();
+    for p in confirmed_partners(c, student_id)? {
+        if together_now(c, p, school_year)? {
+            out.push(student_label_of(c, p, school_year)?);
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 #[path = "sibling_tests.rs"]
 mod sibling_tests;

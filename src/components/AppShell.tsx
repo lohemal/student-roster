@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+import { SystemBanner } from '@/features/system/SystemBanner'
 import { yearLabel } from '@/lib/schoolYear'
 import s from './AppShell.module.css'
 
@@ -110,6 +111,8 @@ export function AppShell({ schoolName, currentYear, appVersion, issueCount = 0 }
       </aside>
 
       <main className={s.main}>
+        {/* 자료 복원·무결성·새 버전은 어느 화면에 있든 보여야 한다 */}
+        <SystemBanner />
         <Outlet />
       </main>
     </div>

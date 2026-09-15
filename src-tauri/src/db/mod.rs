@@ -3,6 +3,7 @@
 //! 1인 사용 데스크톱 앱이므로 커넥션 풀 대신 `Mutex<Connection>` 하나로 충분하다.
 //! 모든 DB 접근은 `Db::read` / `Db::write`를 통해서만 이루어진다.
 
+pub mod backup;
 pub mod migrate;
 
 use std::path::{Path, PathBuf};
@@ -70,6 +71,15 @@ impl Db {
         let out = f(&tx)?;
         tx.commit()?;
         Ok(out)
+    }
+
+    /// 자료가 성한가. `PRAGMA integrity_check` 가 'ok' 를 주면 성한 것이다.
+    ///
+    /// 앱을 열 때 한 번 본다 — 손상된 자료로 계속 쓰다가 백업까지 덮어쓰는 일을 막는다.
+    pub fn integrity(&self) -> AppResult<String> {
+        self.read(|c| {
+            Ok(c.query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))?)
+        })
     }
 
     /// 현재 스키마 버전.

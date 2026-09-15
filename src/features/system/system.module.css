@@ -1,0 +1,169 @@
+/* 운영 — 백업·복원·업데이트·시작 알림 */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.sub {
+  color: var(--text-muted);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 6px 12px;
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.kv dt {
+  color: var(--text-muted);
+}
+
+.kv dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.good {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success-text);
+}
+
+.bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--error-text);
+}
+
+.rowActions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.warnBody {
+  margin: 6px 0;
+  line-height: 1.6;
+}
+
+/* 복원 — 지금 자료를 통째로 바꾸는 일이라 눈에 띄게 둔다 */
+.danger {
+  border-color: var(--error-border);
+}
+
+.notes {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: var(--fs-xs);
+  white-space: pre-wrap;
+}
+
+.stepText {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width 0.2s ease;
+}
+
+/* ---------- 위쪽 알림 줄 ---------- */
+
+.banners {
+  display: flex;
+  flex-direction: column;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+.bannerIcon {
+  flex-shrink: 0;
+}
+
+.bannerText {
+  flex: 1;
+  min-width: 0;
+}
+
+.bannerGood {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.bannerWarn {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+}
+
+.bannerBad {
+  background: var(--error-soft);
+  color: var(--error-text);
+}
+
+.bannerInfo {
+  background: var(--primary-soft);
+  color: var(--primary-text);
+}
+
+.bannerLink,
+.bannerClose {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.bannerLink:hover,
+.bannerClose:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* 백업 목록·복원은 표가 넓어야 읽힌다 — 설정 격자에서 한 줄을 다 쓴다 */
+.wide {
+  grid-column: 1 / -1;
+}

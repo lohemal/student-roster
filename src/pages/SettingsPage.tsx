@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FolderOpen, Plus, RefreshCw, Users } from 'lucide-react'
+import { Plus, RefreshCw, Users } from 'lucide-react'
 
 import { Badge, Button, Card, ErrorNotice, Field, Input, Notice, Page } from '@/components/ui'
-import { appApi } from '@/ipc/app'
+import { DataCard } from '@/features/system/DataCard'
+import { UpdateCard } from '@/features/system/UpdateCard'
 import { watchJob, type JobProgress } from '@/ipc/import'
 import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
@@ -14,7 +15,6 @@ import s from './SettingsPage.module.css'
 export function SettingsPage() {
   const qc = useQueryClient()
   const settings = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get })
-  const info = useQuery({ queryKey: ['app-info'], queryFn: appApi.info })
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['settings'] })
@@ -267,29 +267,10 @@ export function SettingsPage() {
           </div>
         </Card>
 
-        <Card title="자료 위치" description="학생 자료는 이 컴퓨터 안에만 저장됩니다. 외부로 전송하지 않습니다.">
-          <div className={s.stack}>
-            <dl className={s.kv}>
-              <dt>자료 파일</dt>
-              <dd className="selectable">{info.data?.dbPath ?? '…'}</dd>
-              <dt>프로그램 버전</dt>
-              <dd>v{info.data?.appVersion ?? '…'}</dd>
-              <dt>자료 구조 버전</dt>
-              <dd>
-                {info.data ? `v${info.data.schemaVersion}` : '…'}
-              </dd>
-            </dl>
-            <Notice tone="info">
-              개인정보 보호를 위해 이 PC의 Windows 계정에 암호를 걸고, 가능하면 BitLocker(드라이브 암호화)를 켜 두세요.
-              백업·복원 기능은 Phase 10에서 추가됩니다.
-            </Notice>
-            <div>
-              <Button icon={FolderOpen} variant="outline" onClick={() => appApi.openDataFolder()}>
-                자료 폴더 열기
-              </Button>
-            </div>
-          </div>
-        </Card>
+        <DataCard />
+
+        <UpdateCard />
+
       </div>
     </Page>
   )

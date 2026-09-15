@@ -4,6 +4,7 @@
 
 pub mod address;
 pub mod app;
+pub mod backup;
 pub mod export;
 pub mod graduation;
 pub mod import;

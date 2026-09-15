@@ -30,6 +30,9 @@ pub enum Status {
 }
 
 impl Status {
+    /// DB 에 적히는 글자. 저장 경로는 `ACTIVE_STATUS_SQL` 과 각 repo 의 SQL 이 쓰므로
+    /// 지금은 검사에서 `parse` 와 짝이 맞는지 보는 데만 쓴다.
+    #[cfg(test)]
     pub fn code(self) -> &'static str {
         match self {
             Status::Enrolled => "ENROLLED",
@@ -58,30 +61,6 @@ impl Status {
     /// 지금 학교에 다니는가 — 명단·통계에 세는 기준.
     pub fn is_active(self) -> bool {
         !matches!(self, Status::TransferOut)
-    }
-}
-
-/// 이동 사건 종류. `enrollment_events.kind` 와 같은 값이다.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Event {
-    Enroll,
-    TransferIn,
-    TransferOut,
-    Promote,
-    Graduate,
-    Cancel,
-}
-
-impl Event {
-    pub fn code(self) -> &'static str {
-        match self {
-            Event::Enroll => "ENROLL",
-            Event::TransferIn => "TRANSFER_IN",
-            Event::TransferOut => "TRANSFER_OUT",
-            Event::Promote => "PROMOTE",
-            Event::Graduate => "GRADUATE",
-            Event::Cancel => "CANCEL",
-        }
     }
 }
 

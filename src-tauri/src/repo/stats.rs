@@ -109,7 +109,8 @@ pub struct Counts {
 }
 
 impl Counts {
-    /// 남 + 여 + 미입력 이 합계와 같은가.
+    /// 남 + 여 + 미입력 이 합계와 같은가. 검사에서 표마다 이것을 본다.
+    #[cfg(test)]
     pub fn balanced(&self) -> bool {
         self.male + self.female + self.unknown == self.total
     }

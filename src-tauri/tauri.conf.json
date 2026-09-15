@@ -29,7 +29,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -39,7 +41,9 @@
     ],
     "windows": {
       "nsis": {
-        "languages": ["Korean"],
+        "languages": [
+          "Korean"
+        ],
         "displayLanguageSelector": false,
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico",
@@ -50,7 +54,19 @@
     "copyright": "Copyright © 2026 lohemal",
     "shortDescription": "초등학교 학생명단 통합 관리 프로그램",
     "longDescription": "학생정보를 한 번만 등록하면 전입·전출·진급·통계·명단 생성을 프로그램이 처리합니다. 자료는 이 컴퓨터에만 저장됩니다.",
-    "category": "Education"
+    "category": "Education",
+    "createUpdaterArtifacts": true,
+    "homepage": "https://github.com/lohemal/student-roster"
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/lohemal/student-roster/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQyNzRCQzUyOENDOTMwRjUKUldUMU1NbU1VcngwUWdvMDlWS05ITE9FSEllZHlHeWJwTXllNVBLbGo4VHNYSUxPZnFja3dJVEgK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
 }

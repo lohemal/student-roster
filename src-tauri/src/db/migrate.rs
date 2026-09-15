@@ -117,6 +117,7 @@ mod tests {
             "issues",
             "imports",
             "year_transitions",
+            "renumber_ops",
         ] {
             assert!(tables.iter().any(|x| x == t), "표 {t} 가 없다");
         }

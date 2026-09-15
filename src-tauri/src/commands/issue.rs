@@ -44,3 +44,17 @@ pub fn issue_recompute(state: State<'_, AppState>, school_year: i32) -> AppResul
         Ok(ids.len() as i64)
     })
 }
+
+/// 확인 필요 목록. 종류를 가리지 않고 한곳에 모아 본다.
+#[tauri::command]
+pub fn issue_list(
+    state: State<'_, AppState>,
+    filter: repo::issue::IssueFilter,
+    limit: i64,
+    offset: i64,
+) -> AppResult<repo::issue::IssueListPage> {
+    let limit = limit.clamp(1, 500);
+    state
+        .db
+        .read(|c| repo::issue::list(c, &filter, limit, offset.max(0)))
+}

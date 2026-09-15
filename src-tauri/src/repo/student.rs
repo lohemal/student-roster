@@ -258,6 +258,18 @@ pub fn create(c: &Connection, input: &StudentInput, today: NaiveDate) -> AppResu
     )?;
 
     sync_issues(c, student_id, input.school_year, today)?;
+
+    // 이 번호를 이미 쓰던 학생이 있으면 그쪽 표시도 함께 켜야 한다
+    let numbers: Vec<i32> = input.class_no.into_iter().collect();
+    sync_number_peers(
+        c,
+        input.school_year,
+        input.grade,
+        class_name.as_deref(),
+        &numbers,
+        student_id,
+        today,
+    )?;
     Ok(student_id)
 }
 
@@ -341,6 +353,17 @@ pub fn update(
     }
 
     let class_name = clean(&input.class_name);
+
+    // 번호가 겹치던 상대를 찾으려면 바뀌기 전 자리를 알아야 한다
+    let before: Option<(i32, Option<String>, Option<i32>)> = c
+        .query_row(
+            "SELECT grade, class_name, class_no FROM enrollments
+              WHERE student_id = ?1 AND school_year = ?2",
+            params![student_id, input.school_year],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+
     let n = c.execute(
         "UPDATE enrollments
             SET grade = ?3, class_name = ?4, class_no = ?5,
@@ -362,6 +385,30 @@ pub fn update(
     }
 
     sync_issues_with_siblings(c, student_id, input.school_year, today)?;
+
+    // 떠나온 자리와 새로 앉은 자리 양쪽의 번호 이웃을 다시 따진다
+    if let Some((old_grade, old_class, old_no)) = before {
+        let old_numbers: Vec<i32> = old_no.into_iter().collect();
+        sync_number_peers(
+            c,
+            input.school_year,
+            old_grade,
+            old_class.as_deref(),
+            &old_numbers,
+            student_id,
+            today,
+        )?;
+    }
+    let new_numbers: Vec<i32> = input.class_no.into_iter().collect();
+    sync_number_peers(
+        c,
+        input.school_year,
+        input.grade,
+        class_name.as_deref(),
+        &new_numbers,
+        student_id,
+        today,
+    )?;
     Ok(())
 }
 
@@ -558,11 +605,13 @@ pub fn sync_issues(
     )?;
 
     // --- 반·번호 미정 ---
-    let (class_name, class_no): (Option<String>, Option<i32>) = c.query_row(
-        "SELECT class_name, class_no FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
-        params![student_id, school_year],
-        |r| Ok((r.get(0)?, r.get(1)?)),
-    )?;
+    let (grade, class_name, class_no, status): (i32, Option<String>, Option<i32>, String) = c
+        .query_row(
+            "SELECT grade, class_name, class_no, status
+               FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
+            params![student_id, school_year],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )?;
     let mut unset: Vec<&str> = Vec::new();
     if class_name.as_deref().map(str::trim).unwrap_or("").is_empty() {
         unset.push("반");
@@ -581,6 +630,35 @@ pub fn sync_issues(
         IssueKind::ClassAssign,
         class_msg.map(|m| (m, None)),
     )?;
+
+    // --- 같은 반 번호 중복 ---
+    //
+    // 번호에는 UNIQUE 제약을 걸지 않는다(걸면 엑셀 가져오기와 학기 초 정리가 막힌다).
+    // 대신 겹치면 여기에 표시하고, 자동 번호 재정렬은 이 표시가 있는 반에서 멈춘다.
+    let active = status != "TRANSFER_OUT";
+    let dup_count: i64 = match class_no {
+        Some(no) if active => c.query_row(
+            "SELECT COUNT(*) FROM enrollments
+              WHERE school_year = ?1 AND grade = ?2
+                AND ((class_name IS NULL AND ?3 IS NULL) OR class_name = ?3)
+                AND class_no = ?4
+                AND status IN ('ENROLLED','TRANSFER_IN')",
+            params![school_year, grade, class_name, no],
+            |r| r.get(0),
+        )?,
+        _ => 0,
+    };
+    let number_problem = (dup_count > 1).then(|| {
+        let where_ = label::class_label(grade, class_name.as_deref());
+        (
+            format!(
+                "{where_}반에서 {}번을 쓰는 학생이 {dup_count}명 있습니다. 번호를 정리해 주세요.",
+                class_no.unwrap_or(0)
+            ),
+            None,
+        )
+    });
+    issue::set(c, student_id, IssueKind::NumberDup, number_problem)?;
 
     // --- 같은 학년도에 이름+생년월일이 같은 학생 ---
     let dup: Option<i64> = if birth_date.is_some() {
@@ -723,6 +801,38 @@ pub fn sync_issues(
     issue::close_except(c, student_id, IssueKind::GuardianFill, &keep_fill)?;
     issue::close_except(c, student_id, IssueKind::GuardianConflict, &keep_conflict)?;
 
+    Ok(())
+}
+
+/// 같은 반에서 이 번호들을 쓰는 다른 학생의 표시도 다시 맞춘다.
+///
+/// 번호 중복은 **둘 이상이 함께 겪는 문제**다. 한쪽이 번호를 비켜 주면 남은 쪽의
+/// 표시도 사라져야 하는데, 고친 학생만 다시 따지면 상대 쪽 표시가 남는다.
+pub fn sync_number_peers(
+    c: &Connection,
+    school_year: i32,
+    grade: i32,
+    class_name: Option<&str>,
+    numbers: &[i32],
+    skip: i64,
+    today: NaiveDate,
+) -> AppResult<()> {
+    for no in numbers {
+        let ids: Vec<i64> = c
+            .prepare_cached(
+                "SELECT student_id FROM enrollments
+                  WHERE school_year = ?1 AND grade = ?2
+                    AND ((class_name IS NULL AND ?3 IS NULL) OR class_name = ?3)
+                    AND class_no = ?4 AND student_id <> ?5",
+            )?
+            .query_map(params![school_year, grade, class_name, no, skip], |r| {
+                r.get(0)
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        for id in ids {
+            sync_issues(c, id, school_year, today)?;
+        }
+    }
     Ok(())
 }
 

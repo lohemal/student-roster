@@ -6,6 +6,7 @@ pub mod address;
 pub mod app;
 pub mod import;
 pub mod issue;
+pub mod renumber;
 pub mod settings;
 pub mod sibling;
 pub mod student;

@@ -1,0 +1,204 @@
+/* ---------- 위쪽 요약 ---------- */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.total {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.totalNum {
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.totalWord {
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.totalHint {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+/* 종류별 개수 — 카드를 크게 늘어놓지 않고 누를 수 있는 칩으로 */
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kind {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kind:hover {
+  background: var(--surface-2);
+}
+
+.kindOn {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-text);
+  font-weight: 700;
+}
+
+.kindNum {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 조건 ---------- */
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.filterRow {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.searchInput {
+  padding-left: 32px;
+  padding-right: 30px;
+}
+
+.clearBtn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.clearBtn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.compact {
+  width: auto;
+  min-width: 108px;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.summaryCount {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.summarySpacer {
+  flex: 1;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.pageInfo {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 표 ---------- */
+
+.msgCell {
+  max-width: 460px;
+}
+
+.msg {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.whenCell {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.studentCell {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.loadingRow td {
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--sp-6) !important;
+}
+
+.note {
+  margin-top: var(--sp-4);
+}

@@ -9,6 +9,7 @@ import { settingsApi } from '@/ipc/settings'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { AddressRulesPage } from '@/pages/AddressRulesPage'
 import { ImportPage } from '@/pages/ImportPage'
+import { IssuesPage } from '@/pages/IssuesPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { StudentsPage } from '@/pages/StudentsPage'
 import { WelcomePage } from '@/pages/WelcomePage'
@@ -92,16 +93,7 @@ export function App() {
               />
             }
           />
-          <Route
-            path="/issues"
-            element={
-              <PlaceholderPage
-                title="확인 필요"
-                phase={5}
-                description="주소·생년월일·보호자·형제 후보 등 확인이 필요한 학생을 종류별로 모아 처리합니다."
-              />
-            }
-          />
+          <Route path="/issues" element={<IssuesPage />} />
           <Route path="/address-rules" element={<AddressRulesPage />} />
           <Route
             path="/stats"

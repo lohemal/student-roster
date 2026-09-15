@@ -8,4 +8,5 @@ pub mod birth;
 pub mod korean;
 pub mod label;
 pub mod phone;
+pub mod renumber;
 pub mod sibling;

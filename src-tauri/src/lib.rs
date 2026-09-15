@@ -59,6 +59,10 @@ pub fn run() {
             // 확인 필요
             commands::issue::issue_summary,
             commands::issue::issue_recompute,
+            commands::issue::issue_list,
+            // 학생 번호 재정렬
+            commands::renumber::renumber_preview,
+            commands::renumber::renumber_apply,
             // 엑셀 가져오기
             commands::import::import_inspect,
             commands::import::import_preview,

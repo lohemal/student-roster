@@ -52,6 +52,7 @@ export function SettingsPage() {
     mutationFn: () => issueApi.recompute(settings.data!.currentYear!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['issue-summary'] })
+      qc.invalidateQueries({ queryKey: ['issues'] })
       qc.invalidateQueries({ queryKey: ['students'] })
     },
   })
@@ -80,6 +81,7 @@ export function SettingsPage() {
           qc.invalidateQueries({ queryKey: ['students'] })
           qc.invalidateQueries({ queryKey: ['siblings'] })
           qc.invalidateQueries({ queryKey: ['issue-summary'] })
+          qc.invalidateQueries({ queryKey: ['issues'] })
         },
         onError: (e) => {
           setScanError(e)

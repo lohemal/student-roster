@@ -262,3 +262,30 @@ CREATE TABLE year_transitions (
   executed_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   summary      TEXT                                     -- JSON: 진급/신입/졸업/제외 개수
 );
+
+-- ---------------------------------------------------------------
+-- 번호 재정렬 기록
+--
+-- 번호 이동 한 번에 반 학생 열몇 명의 번호가 함께 바뀐다. 나중에 "내 번호가 왜
+-- 바뀌었지?" 를 되짚을 수 있어야 하므로 작업 단위로 한 줄만 남긴다.
+--
+-- 학생마다 enrollment_events 에 남기지 않는 까닭: 그 표는 전입·전출·진급 같은
+-- '학적 이동' 이력이다. 한 번 정렬할 때마다 사건이 열몇 개씩 쌓이면 정작 봐야 할
+-- 이동 기록이 묻힌다.
+-- ---------------------------------------------------------------
+
+CREATE TABLE renumber_ops (
+  id           INTEGER PRIMARY KEY,
+  school_year  INTEGER NOT NULL,
+  grade        INTEGER NOT NULL,
+  class_name   TEXT,
+  student_id   INTEGER REFERENCES students(id) ON DELETE SET NULL,  -- 사용자가 고른 학생
+  from_no      INTEGER,                                 -- 없던 번호를 준 경우 NULL
+  to_no        INTEGER NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN ('ASSIGN', 'REORDER', 'INSERT')),
+  moved        INTEGER NOT NULL DEFAULT 0,              -- 번호가 바뀐 학생 수 (대상 포함)
+  plan         TEXT NOT NULL DEFAULT '[]',              -- JSON: [{studentId, from, to}]
+  created_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX ix_renumber_class ON renumber_ops(school_year, grade, class_name, id);

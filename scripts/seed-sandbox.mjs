@@ -395,6 +395,80 @@ const i2 = addFixture('권두별', 'F', 4, G('권여울', null, '010-9908-0001',
   '형제 시험 I — 확정, 모 성명·모 연락처가 빈칸')
 link(i1, i2, 'CONFIRMED', ['fatherName', 'fatherPhone'])
 
+// ---- 번호 재정렬 시험용 -----------------------------------------------------
+//
+// 번호를 옮기면 같은 반 학생이 어떻게 밀리는지 눈으로 보려면 번호가 가지런한 반이
+// 하나 있어야 한다. 6학년 라온반에 1~23번을 차례로 채워 둔다.
+// 자료는 모두 채워 넣어 '확인 필요' 표시가 생기지 않게 한다 — 번호만 보기 위해서다.
+
+/** 번호를 직접 정해 학생을 넣는다. */
+function addNumbered(name, grade, className, classNo, note, gender = 'M') {
+  const [fp, fd] = phone()
+  const [mp, md] = phone()
+  const address = `○○시 나온로 202, 101동 ${100 + ((classNo ?? 0) % 15)}호(나온마을1단지)`
+  // 번호만 보기 위한 학생이므로 생년월일은 일부러 깨끗하게 둔다
+  const year = YEAR - grade - 6
+  const day = String(1 + ((classNo ?? 0) % 28)).padStart(2, '0')
+  const birthIso = `${year}-03-${day}`
+  const birthRaw = `${String(year).slice(2)}03${day}`
+  insStudent.run(
+    name,
+    gender,
+    birthRaw,
+    birthIso,
+    address,
+    address,
+    makeName('M'),
+    makeName('F'),
+    fp,
+    fd,
+    mp,
+    md,
+    mp,
+    md,
+    note,
+  )
+  const id = db.prepare('SELECT last_insert_rowid() AS id').get().id
+  insEnroll.run(id, YEAR, grade, className, classNo, 'ENROLLED')
+  insEvent.run(id, YEAR, 'ENROLL', grade, className, classNo)
+  made++
+  return id
+}
+
+// 번호가 가지런한 반 — 23번을 7번으로, 7번을 23번으로 옮겨 보는 곳
+for (let i = 1; i <= 23; i++) {
+  addNumbered(
+    `번호시험${String(i).padStart(2, '0')}`,
+    6,
+    '라온',
+    i,
+    '번호 시험 — 1~23번이 가지런한 반',
+    i % 2 === 0 ? 'F' : 'M',
+  )
+}
+
+// 번호가 겹치는 반 — 여기서는 자동 번호 변경이 막혀야 한다
+addNumbered('중복시험가', 2, '라온', 1, '번호 중복 시험 — 1번')
+addNumbered('중복시험나', 2, '라온', 2, '번호 중복 시험 — 2번')
+addNumbered('중복시험다', 2, '라온', 5, '번호 중복 시험 — 5번이 둘 가운데 하나', 'F')
+addNumbered('중복시험라', 2, '라온', 5, '번호 중복 시험 — 5번이 둘 가운데 하나', 'F')
+addNumbered('중복시험마', 2, '라온', 6, '번호 중복 시험 — 6번')
+
+// 번호가 띄엄띄엄한 반 — 1,2,3,5,6,9. 옮겨도 4·7·8번이 생기면 안 된다
+for (const [i, no] of [1, 2, 3, 5, 6, 9].entries()) {
+  addNumbered(
+    `띄엄시험${String(i + 1).padStart(2, '0')}`,
+    4,
+    '라온',
+    no,
+    '번호 시험 — 띄엄띄엄한 번호(1,2,3,5,6,9)',
+    'F',
+  )
+}
+
+// 번호가 없는 학생 — 자동 이동 대상이 아니다
+addNumbered('번호없음가', 4, '라온', null, '번호 시험 — 번호가 없는 학생')
+
 db.exec('COMMIT')
 
 const after = db.prepare('SELECT COUNT(*) AS n FROM students').get().n
@@ -423,5 +497,11 @@ console.log('  · C 한 항목만 같음 · D 연락처만 같음 · G 보호자
 console.log('  · F 3개 일치 1개 불일치 → 후보이면서 불일치가 함께 보여야 합니다')
 console.log("  · H 는 '형제 아님', I 는 '확정'으로 미리 정해 두었습니다 (I 는 가져오기 시험용)")
 console.log("  · 설정 화면의 [형제 후보 다시 찾기] 를 눌러야 후보가 만들어집니다")
+console.log('')
+console.log('번호 재정렬 시험:')
+console.log('  · 6학년 라온반 — 1~23번이 가지런합니다. 23→7 과 7→23 을 눌러 보세요')
+console.log('  · 4학년 라온반 — 번호가 1,2,3,5,6,9 로 띄엄띄엄합니다 (없던 4·7·8번이 생기면 안 됩니다)')
+console.log('  · 4학년 라온반 번호없음가 — 번호가 없는 학생입니다')
+console.log('  · 2학년 라온반 — 5번이 둘입니다. 자동 번호 변경이 막혀야 합니다')
 
 db.close()

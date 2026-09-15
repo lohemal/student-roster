@@ -136,6 +136,7 @@ export function StudentsPage() {
     qc.invalidateQueries({ queryKey: ['students'] })
     qc.invalidateQueries({ queryKey: ['class-options'] })
     qc.invalidateQueries({ queryKey: ['issue-summary'] })
+    qc.invalidateQueries({ queryKey: ['issues'] })
     qc.invalidateQueries({ queryKey: ['address-categories'] })
     qc.invalidateQueries({ queryKey: ['settings'] })
   }

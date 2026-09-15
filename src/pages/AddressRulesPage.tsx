@@ -53,6 +53,7 @@ export function AddressRulesPage() {
     qc.invalidateQueries({ queryKey: ['address-rules'] })
     qc.invalidateQueries({ queryKey: ['students'] })
     qc.invalidateQueries({ queryKey: ['issue-summary'] })
+    qc.invalidateQueries({ queryKey: ['issues'] })
     qc.invalidateQueries({ queryKey: ['student'] })
   }
 

@@ -5,6 +5,7 @@
 
 pub mod address;
 pub mod issue;
+pub mod renumber;
 pub mod settings;
 pub mod sibling;
 pub mod student;

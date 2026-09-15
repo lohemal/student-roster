@@ -61,3 +61,13 @@ fn 섞여_있어도_숫자_먼저_그다음_가나다() {
         vec![Some("1"), Some("3"), Some("가람"), Some("나리"), None]
     );
 }
+
+#[test]
+fn 명단_정렬은_반_정렬_규칙을_그대로_품는다() {
+    assert!(
+        ORDER_BY_ROSTER.contains(ORDER_BY_CLASS),
+        "명단과 통계가 반을 다른 차례로 늘어놓으면 같은 자료가 다른 표처럼 읽힌다"
+    );
+    assert!(ORDER_BY_ROSTER.starts_with("e.grade"), "학년이 맨 앞이다");
+    assert!(ORDER_BY_ROSTER.ends_with("s.name"), "마지막은 이름이다");
+}

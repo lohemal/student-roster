@@ -10,6 +10,7 @@ import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { AddressRulesPage } from '@/pages/AddressRulesPage'
 import { ImportPage } from '@/pages/ImportPage'
 import { IssuesPage } from '@/pages/IssuesPage'
+import { StatsPage } from '@/pages/StatsPage'
 import { TransferInPage } from '@/pages/TransferInPage'
 import { TransferOutPage } from '@/pages/TransferOutPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -79,16 +80,7 @@ export function App() {
           <Route path="/transfer-out" element={<TransferOutPage />} />
           <Route path="/issues" element={<IssuesPage />} />
           <Route path="/address-rules" element={<AddressRulesPage />} />
-          <Route
-            path="/stats"
-            element={
-              <PlaceholderPage
-                title="통계"
-                phase={7}
-                description="학년×반×성별, 주소 분류별 학생수를 학년도별로 봅니다."
-              />
-            }
-          />
+          <Route path="/stats" element={<StatsPage />} />
           <Route
             path="/year-transition"
             element={

@@ -1,0 +1,216 @@
+/* ---------- 조건 ---------- */
+
+.filters {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+
+.compact {
+  width: auto;
+  min-width: 112px;
+}
+
+.filterSpacer {
+  flex: 1;
+}
+
+.basis {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+/* ---------- 위쪽 요약 ---------- */
+
+.summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  margin-bottom: var(--sp-4);
+}
+
+.summaryWho {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.summaryNum {
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.summaryWord {
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.summaryParts {
+  display: flex;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryPart b {
+  font-weight: 700;
+}
+
+/* ---------- 구역 ---------- */
+
+.section {
+  margin-bottom: var(--sp-5);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.sectionTitle {
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.sectionHint {
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+}
+
+.sectionSpacer {
+  flex: 1;
+}
+
+/* ---------- 표 ---------- */
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th {
+  text-align: left;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  background: var(--surface-2);
+}
+
+.table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.totalRow td {
+  background: var(--surface-2);
+  font-weight: 700;
+}
+
+/* 첫 열은 가로로 스크롤해도 따라온다 */
+.sticky {
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+}
+
+.table th.sticky {
+  background: var(--surface-2);
+  z-index: 1;
+}
+
+.totalRow td.sticky {
+  background: var(--surface-2);
+}
+
+/* 눌러서 학생명단으로 가는 칸 */
+.linkCell {
+  cursor: pointer;
+  color: var(--primary-text);
+  text-decoration: underline;
+  text-decoration-color: var(--primary-border);
+  text-underline-offset: 3px;
+}
+
+.linkCell:hover {
+  background: var(--primary-soft);
+}
+
+.zero {
+  color: var(--text-faint);
+}
+
+.groupName {
+  font-weight: 600;
+}
+
+/* ---------- 주소 품질 ---------- */
+
+.quality {
+  display: flex;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.qualityItem {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.qualityKey {
+  color: var(--text-muted);
+}
+
+.qualityVal {
+  font-weight: 700;
+}
+
+/* ---------- 아래 안내 ---------- */
+
+.foot {
+  margin-top: var(--sp-5);
+}
+
+.checked {
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+}

@@ -72,6 +72,8 @@ pub fn run() {
             commands::transfer::transfer_out,
             commands::transfer::transfer_out_cancel,
             commands::transfer::transfer_past_out,
+            // 통계
+            commands::stats::stats_overview,
             // 엑셀 가져오기
             commands::import::import_inspect,
             commands::import::import_preview,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft,
   ChevronRight,
@@ -68,12 +68,19 @@ export function StudentsPage() {
   const settings = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get })
   const schoolYear = settings.data?.currentYear ?? null
 
+  // 통계 화면에서 숫자를 누르고 넘어오면 그 조건으로 명단을 연다.
+  // 통계 전용 목록을 따로 만들지 않고 이 화면 하나를 쓴다.
+  const [params] = useSearchParams()
+
   const [q, setQ] = useState('')
-  const [grade, setGrade] = useState<number | null>(null)
+  const [grade, setGrade] = useState<number | null>(() => {
+    const g = Number(params.get('grade'))
+    return Number.isFinite(g) && g >= 1 && g <= 6 ? g : null
+  })
   const [className, setClassName] = useState<string | null>(null)
   const [status, setStatus] = useState<StatusFilter>('ACTIVE')
-  // '' 전체 / 'NONE' 미분류만 / 숫자 분류 id
-  const [addressCat, setAddressCat] = useState<string>('')
+  // '' 전체 / 'NONE' 미분류만 / 'NOADDR' 주소 없음 / 숫자 분류 id
+  const [addressCat, setAddressCat] = useState<string>(() => params.get('address') ?? '')
   const [onlyIssues, setOnlyIssues] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [adv, setAdv] = useState<Advanced>(EMPTY_ADVANCED)
@@ -103,8 +110,12 @@ export function StudentsPage() {
       className,
       status,
       onlyIssues,
-      addressCategoryId: addressCat && addressCat !== 'NONE' ? Number(addressCat) : null,
+      addressCategoryId:
+        addressCat && addressCat !== 'NONE' && addressCat !== 'NOADDR'
+          ? Number(addressCat)
+          : null,
       addressUnclassified: addressCat === 'NONE',
+      addressNone: addressCat === 'NOADDR',
       name: adv.name.trim() || undefined,
       classNo: adv.classNo.trim() ? Number(adv.classNo) : null,
       address: adv.address.trim() || undefined,
@@ -266,6 +277,7 @@ export function StudentsPage() {
           >
             <option value="">전체 주소</option>
             <option value="NONE">미분류</option>
+            <option value="NOADDR">주소 없음</option>
             {(addressCats.data ?? []).map((c) => (
               <option key={c.id} value={String(c.id)}>
                 {c.name}

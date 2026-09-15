@@ -14,6 +14,7 @@ use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
 use crate::domain::{address, birth, korean, label, phone, sibling};
 use crate::repo::address as addr_repo;
 use crate::repo::sibling as sibling_repo;
+use crate::repo::stats;
 use crate::error::{AppError, AppResult};
 use crate::repo::issue::{self, IssueKind, IssueRow};
 
@@ -926,6 +927,9 @@ pub struct ListFilter {
     /// 주소는 있는데 아직 분류하지 못한 학생만
     #[serde(default)]
     pub address_unclassified: bool,
+    /// 주소 자체가 없는 학생만. 통계의 '주소 없음' 을 눌렀을 때 쓴다.
+    #[serde(default)]
+    pub address_none: bool,
     /// ACTIVE(기본, 재학+전입) / ALL / ENROLLED / TRANSFER_IN / TRANSFER_OUT
     pub status: Option<String>,
     // 항목별 검색
@@ -980,10 +984,13 @@ fn build_where(f: &ListFilter) -> Where {
     if let Some(cat) = f.address_category_id {
         w.push("s.address_category_id = ?", Value::Integer(cat));
     }
+    // 주소 상태는 통계와 **같은 조건**을 쓴다. 통계에서 숫자를 누르고 넘어왔을 때
+    // 명단에 뜨는 인원이 그 숫자와 달라지면 어느 쪽도 믿을 수 없게 된다.
     if f.address_unclassified {
-        // 주소는 있는데 아직 분류하지 못한 학생 (주소가 없는 학생은 뺀다)
-        w.sql
-            .push("(s.address_category_id IS NULL AND s.address_raw IS NOT NULL)".into());
+        w.sql.push(stats::UNCLASSIFIED_SQL.into());
+    }
+    if f.address_none {
+        w.sql.push(stats::NO_ADDRESS_SQL.into());
     }
     if let Some(n) = f.class_no {
         w.push("e.class_no = ?", Value::Integer(n as i64));

@@ -1,5 +1,9 @@
 import { invoke } from './invoke'
 import type { Gender, StudentInput } from './student'
+// 인원 집계 타입은 통계 쪽 하나를 함께 쓴다 — 같은 숫자를 두 모양으로 두지 않는다.
+import type { GradeCounts } from './stats'
+
+export type { ClassCount, GradeCounts } from './stats'
 
 /** 학년도별 학적 한 줄 — 같은 학생인지 사람이 보고 정하는 데 쓴다 */
 export interface HistoryLine {
@@ -20,23 +24,6 @@ export interface StudentMatch {
   history: HistoryLine[]
   /** 올해 이미 학적이 있으면 그 상태 이름 */
   currentStatus: string | null
-}
-
-export interface ClassCount {
-  grade: number
-  className: string | null
-  classLabel: string
-  male: number
-  female: number
-  /** 성별이 비어 있는 학생 — 남·여 어느 쪽에도 넣지 않는다 */
-  unknown: number
-  total: number
-}
-
-export interface GradeCounts {
-  grade: number
-  classes: ClassCount[]
-  total: ClassCount
 }
 
 export interface TransferInResult {

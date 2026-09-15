@@ -116,6 +116,8 @@ export interface ListFilter {
   addressCategoryId?: number | null
   /** 주소는 있는데 아직 분류하지 못한 학생만 */
   addressUnclassified?: boolean
+  /** 주소 자체가 없는 학생만. 통계의 [주소 없음] 에서 넘어올 때 쓴다 */
+  addressNone?: boolean
   status?: StatusFilter
   name?: string
   classNo?: number | null

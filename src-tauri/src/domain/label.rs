@@ -31,6 +31,24 @@ pub fn class_sort_key(class_name: Option<&str>) -> (u8, i64, String) {
     }
 }
 
+/// 반 정렬 규칙을 **한 번만** 적는다.
+///
+/// 명단과 통계가 서로 다른 순서로 반을 늘어놓으면 같은 자료를 보고도 다른 표처럼
+/// 읽힌다. 상수 둘이 이 매크로 하나에서 나오므로 어긋날 수가 없다.
+macro_rules! class_order_sql {
+    () => {
+        "CASE WHEN e.class_name IS NULL OR TRIM(e.class_name) = '' THEN 2
+            WHEN TRIM(e.class_name) GLOB '[0-9]*' THEN 0
+            ELSE 1 END,
+       CASE WHEN TRIM(e.class_name) GLOB '[0-9]*' THEN CAST(e.class_name AS INTEGER) ELSE 0 END,
+       e.class_name"
+    };
+}
+
+/// 반만 늘어놓을 때 — 숫자 반 먼저 숫자 순서로, 그다음 글자 반을 가나다 순으로,
+/// 반이 없는(미정) 학생은 맨 뒤로. 통계의 반별 표가 쓴다.
+pub const ORDER_BY_CLASS: &str = class_order_sql!();
+
 /// 학생명단 기본 정렬 — 학년 → 반 → 번호 → 이름.
 ///
 /// SQL 로 같은 순서를 만들어 내는 조각. 화면이 아니라 DB 에서 정렬해야
@@ -39,16 +57,13 @@ pub fn class_sort_key(class_name: Option<&str>) -> (u8, i64, String) {
 /// 학교가 정한 반 순서(가람·나리·다솜…)를 쓰고 싶어지면, 순서표를 만들어
 /// `LEFT JOIN class_orders` 한 뒤 맨 앞에 `COALESCE(co.sort_order, 9999)` 한 줄을
 /// 끼워 넣으면 된다. 나머지 규칙은 그대로 둘 수 있다.
-pub const ORDER_BY_ROSTER: &str = "
-      e.grade,
-      CASE WHEN e.class_name IS NULL OR TRIM(e.class_name) = '' THEN 2
-           WHEN TRIM(e.class_name) GLOB '[0-9]*' THEN 0
-           ELSE 1 END,
-      CASE WHEN TRIM(e.class_name) GLOB '[0-9]*' THEN CAST(e.class_name AS INTEGER) ELSE 0 END,
-      e.class_name,
-      CASE WHEN e.class_no IS NULL THEN 1 ELSE 0 END,
-      e.class_no,
-      s.name";
+pub const ORDER_BY_ROSTER: &str = concat!(
+    "e.grade,\n       ",
+    class_order_sql!(),
+    ",\n       CASE WHEN e.class_no IS NULL THEN 1 ELSE 0 END,
+       e.class_no,
+       s.name"
+);
 
 #[cfg(test)]
 #[path = "label_tests.rs"]

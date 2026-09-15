@@ -313,14 +313,14 @@ fn 전출하면_반별_인원이_그_자리에서_준다() {
     enroll(&db, "다학생", 3, "나리", 3);
 
     let before = db.read(|c| stats::grade_counts(c, 2026, 3)).unwrap();
-    assert_eq!(before.total.total, 3);
-    assert_eq!(before.total.male, 3);
+    assert_eq!(before.total.counts.total, 3);
+    assert_eq!(before.total.counts.male, 3);
 
     go_out(&db, a, "2026-05-14").unwrap();
 
     let after = db.read(|c| stats::grade_counts(c, 2026, 3)).unwrap();
-    assert_eq!(after.total.total, 2);
-    assert_eq!(after.total.male, 2);
+    assert_eq!(after.total.counts.total, 2);
+    assert_eq!(after.total.counts.male, 2);
 }
 
 #[test]

@@ -5,6 +5,7 @@
 
 pub mod address;
 pub mod birth;
+pub mod enroll;
 pub mod korean;
 pub mod label;
 pub mod phone;

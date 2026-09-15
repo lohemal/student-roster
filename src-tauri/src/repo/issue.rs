@@ -6,6 +6,7 @@
 use rusqlite::{params, params_from_iter, types::Value, Connection};
 use serde::{Deserialize, Serialize};
 
+use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
 use crate::domain::label;
 use crate::error::AppResult;
 
@@ -197,17 +198,18 @@ pub struct IssueCount {
 
 /// 종류별 열린 개수. 사이드바 뱃지와 '확인 필요' 화면이 함께 쓴다.
 ///
-/// 지금 학년도에 학적이 있는 학생만 센다 — 지난 학년도 학생의 오래된 표시가
-/// 올해 업무 화면에 쌓이면 안 된다.
+/// **지금 다니는 학생만** 센다. 지난 학년도 학생이나 전출한 학생의 표시가 올해
+/// 업무함에 쌓이면 정작 해야 할 일이 묻힌다. 자료를 지우지는 않으므로 전출을
+/// 되돌리면 그 학생의 표시도 함께 돌아온다.
 pub fn summary(c: &Connection, school_year: i32) -> AppResult<Vec<IssueCount>> {
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT i.kind, COUNT(*)
            FROM issues i
            JOIN enrollments e ON e.student_id = i.student_id AND e.school_year = ?1
-          WHERE i.status = 'OPEN'
+          WHERE i.status = 'OPEN' AND e.{ACTIVE}
           GROUP BY i.kind
-          ORDER BY COUNT(*) DESC, i.kind",
-    )?;
+          ORDER BY COUNT(*) DESC, i.kind"
+    ))?;
     let rows = st
         .query_map([school_year], |r| {
             let kind: String = r.get(0)?;
@@ -238,6 +240,9 @@ pub struct IssueFilter {
     pub status: Option<String>,
     /// 학생 이름이나 `3-나리 홍길동` 같은 표시로 찾기
     pub q: Option<String>,
+    /// 전출한 학생의 표시까지 볼지. 기본은 false — 업무함은 지금 다니는 학생의 일만 다룬다.
+    #[serde(default)]
+    pub include_left: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -284,6 +289,12 @@ const LABEL_SQL: &str = "(e.grade || '-' || \
 fn where_of(f: &IssueFilter) -> (String, Vec<Value>) {
     let mut sql: Vec<String> = vec!["e.school_year = ?".into()];
     let mut args: Vec<Value> = vec![Value::Integer(f.school_year as i64)];
+
+    // 업무함은 **지금 다니는 학생**의 일만 다룬다. 전출한 학생의 주소·누락 표시가
+    // 남아 있으면 오늘 할 일을 가린다. 자료는 그대로 두므로 전출을 되돌리면 돌아온다.
+    if !f.include_left {
+        sql.push(format!("e.{ACTIVE}"));
+    }
 
     match f.status.as_deref().unwrap_or("OPEN") {
         "ALL" => {}

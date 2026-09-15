@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, Trash2 } from 'lucide-react'
+import { AlertTriangle, LogOut, Trash2 } from 'lucide-react'
 
 import {
   Badge,
@@ -20,6 +20,7 @@ import { studentApi, type StudentDetail, type StudentInput } from '@/ipc/student
 import { AddressPanel } from './AddressPanel'
 import { birthCell, genderLabel, statusBadge } from '@/lib/format'
 import { NumberMoveDialog } from './NumberMoveDialog'
+import { TransferOutDialog } from '@/features/transfer/TransferOutDialog'
 import { SiblingPanel } from './SiblingPanel'
 import { StudentForm, emptyStudent } from './StudentForm'
 import s from './StudentDrawer.module.css'
@@ -75,6 +76,8 @@ export function StudentDrawer({
   const [confirmDelete, setConfirmDelete] = useState(false)
   /** 번호를 옮기면 같은 반이 어떻게 바뀌는지 — 사용자가 확인할 때까지 저장하지 않는다 */
   const [movePreview, setMovePreview] = useState<RenumberPreview | null>(null)
+  /** 전출 확인 창 */
+  const [confirmOut, setConfirmOut] = useState(false)
 
   const detail = useQuery({
     queryKey: ['student', studentId, schoolYear],
@@ -87,6 +90,7 @@ export function StudentDrawer({
     setTab(initialTab ?? 'basic')
     setConfirmDelete(false)
     setMovePreview(null)
+    setConfirmOut(false)
     if (isNew) setForm(emptyStudent(schoolYear))
   }, [studentId, isNew, schoolYear, initialTab])
 
@@ -206,6 +210,17 @@ export function StudentDrawer({
               title="입력을 잘못했을 때만 사용하세요"
             >
               삭제
+            </Button>
+          )}
+          {!isNew && !confirmDelete && enrollment && enrollment.status !== 'TRANSFER_OUT' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={LogOut}
+              onClick={() => setConfirmOut(true)}
+              title="학교를 떠난 학생을 현재 명단에서 뺍니다"
+            >
+              전출 처리
             </Button>
           )}
           {confirmDelete && (
@@ -407,6 +422,24 @@ export function StudentDrawer({
         </div>
       )}
 
+      {confirmOut && d && enrollment && (
+        <TransferOutDialog
+          studentId={d.id}
+          studentName={d.name}
+          classLabel={enrollment.classLabel}
+          classNo={enrollment.classNo}
+          schoolYear={schoolYear}
+          onCancel={() => setConfirmOut(false)}
+          onDone={() => {
+            setConfirmOut(false)
+            qc.invalidateQueries({ queryKey: ['transfer'] })
+            qc.invalidateQueries({ queryKey: ['issues'] })
+            qc.invalidateQueries({ queryKey: ['issue-summary'] })
+            invalidate()
+            onClose()
+          }}
+        />
+      )}
       {movePreview && (
         <NumberMoveDialog
           preview={movePreview}

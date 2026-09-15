@@ -21,6 +21,8 @@ export interface IssueFilter {
   status?: string | null
   /** 학생 이름이나 `3-나리 홍길동` 으로 찾기 */
   q?: string | null
+  /** 전출한 학생의 표시까지 볼지. 기본은 false */
+  includeLeft?: boolean
 }
 
 export type IssueStatus = 'OPEN' | 'RESOLVED' | 'DISMISSED'

@@ -10,6 +10,7 @@ use chrono::NaiveDate;
 use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
+use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
 use crate::domain::{address, birth, korean, label, phone, sibling};
 use crate::repo::address as addr_repo;
 use crate::repo::sibling as sibling_repo;
@@ -184,8 +185,48 @@ pub fn event_label(kind: &str) -> &'static str {
 // 만들기 · 고치기
 // ---------------------------------------------------------------
 
+/// 학생이 **어떻게 들어왔는지**. 첫 사건을 무엇으로 남길지 정한다.
+///
+/// 처음 등록은 `ENROLL`, 전입은 `TRANSFER_IN`, 이미 나간 지난 전출생을 뒤늦게 적어
+/// 넣는 것은 `TRANSFER_OUT` 이다. 어느 쪽이든 학생정보 정규화·주소 판정·확인 필요는
+/// **이 함수 하나**를 지나므로 규칙이 갈라지지 않는다.
+#[derive(Debug, Clone)]
+pub struct Entry<'a> {
+    /// 만들어질 학적 상태
+    pub status: &'a str,
+    /// 남길 사건 종류
+    pub kind: &'a str,
+    /// 사건이 일어난 날 (`YYYY-MM-DD`). 모르면 None
+    pub date: Option<&'a str>,
+    pub note: Option<&'a str>,
+    pub source: &'a str,
+}
+
+impl Entry<'static> {
+    /// 그냥 등록 — 지금까지의 모든 호출이 쓰던 값.
+    pub fn enrolled() -> Self {
+        Entry {
+            status: "ENROLLED",
+            kind: "ENROLL",
+            date: None,
+            note: None,
+            source: "MANUAL",
+        }
+    }
+}
+
 /// 학생과 그 학년도 학적을 함께 만든다. `ENROLL` 사건을 남긴다.
 pub fn create(c: &Connection, input: &StudentInput, today: NaiveDate) -> AppResult<i64> {
+    create_with(c, input, today, &Entry::enrolled())
+}
+
+/// 들어온 경로를 정해서 학생을 만든다.
+pub fn create_with(
+    c: &Connection,
+    input: &StudentInput,
+    today: NaiveDate,
+    entry: &Entry<'_>,
+) -> AppResult<i64> {
     input.validate()?;
     require_year(c, input.school_year)?;
 
@@ -234,13 +275,14 @@ pub fn create(c: &Connection, input: &StudentInput, today: NaiveDate) -> AppResu
     let class_name = clean(&input.class_name);
     c.execute(
         "INSERT INTO enrollments(student_id, school_year, grade, class_name, class_no, status)
-         VALUES (?1,?2,?3,?4,?5,'ENROLLED')",
+         VALUES (?1,?2,?3,?4,?5,?6)",
         params![
             student_id,
             input.school_year,
             input.grade,
             class_name,
-            input.class_no
+            input.class_no,
+            entry.status
         ],
     )?;
 
@@ -248,13 +290,13 @@ pub fn create(c: &Connection, input: &StudentInput, today: NaiveDate) -> AppResu
         c,
         student_id,
         input.school_year,
-        "ENROLL",
-        None,
+        entry.kind,
+        entry.date,
         input.grade,
         class_name.as_deref(),
         input.class_no,
-        None,
-        "MANUAL",
+        entry.note,
+        entry.source,
     )?;
 
     sync_issues(c, student_id, input.school_year, today)?;
@@ -638,11 +680,13 @@ pub fn sync_issues(
     let active = status != "TRANSFER_OUT";
     let dup_count: i64 = match class_no {
         Some(no) if active => c.query_row(
+            &format!(
             "SELECT COUNT(*) FROM enrollments
               WHERE school_year = ?1 AND grade = ?2
                 AND ((class_name IS NULL AND ?3 IS NULL) OR class_name = ?3)
                 AND class_no = ?4
-                AND status IN ('ENROLLED','TRANSFER_IN')",
+                AND {ACTIVE}"
+            ),
             params![school_year, grade, class_name, no],
             |r| r.get(0),
         )?,
@@ -923,7 +967,7 @@ fn build_where(f: &ListFilter) -> Where {
 
     match f.status.as_deref().unwrap_or("ACTIVE") {
         "ALL" => {}
-        "ACTIVE" => w.sql.push("e.status IN ('ENROLLED','TRANSFER_IN')".into()),
+        "ACTIVE" => w.sql.push(format!("e.{ACTIVE}")),
         other => w.push("e.status = ?", Value::Text(other.to_string())),
     }
 
@@ -1183,7 +1227,7 @@ pub fn events_of(c: &Connection, student_id: i64) -> AppResult<Vec<EventRow>> {
         "SELECT id, school_year, kind, event_date, grade, class_name, class_no, note, created_at
            FROM enrollment_events
           WHERE student_id = ?1
-          ORDER BY school_year DESC, id DESC",
+          ORDER BY school_year, id",
     )?;
     let rows = st
         .query_map([student_id], |r| {
@@ -1216,14 +1260,14 @@ pub struct ClassOption {
 
 /// 그 학년도에 실제로 있는 학년·반 목록. 검색 칸의 선택지로 쓴다.
 pub fn class_options(c: &Connection, school_year: i32) -> AppResult<Vec<ClassOption>> {
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT e.grade, e.class_name, COUNT(*)
            FROM enrollments e
           WHERE e.school_year = ?1
             AND e.class_name IS NOT NULL AND TRIM(e.class_name) <> ''
-            AND e.status IN ('ENROLLED','TRANSFER_IN')
+            AND e.{ACTIVE}
           GROUP BY e.grade, e.class_name",
-    )?;
+    ))?;
     let mut rows: Vec<ClassOption> = st
         .query_map([school_year], |r| {
             Ok(ClassOption {

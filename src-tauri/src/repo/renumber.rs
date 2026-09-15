@@ -12,6 +12,7 @@ use chrono::NaiveDate;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
+use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
 use crate::domain::label;
 use crate::domain::renumber::{self, Kind, Plan, Seat};
 use crate::error::{AppError, AppResult};
@@ -56,16 +57,16 @@ fn class_of(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Clas
 ///
 /// 반 이름이 NULL 인 학생(반배정 미정)끼리도 하나의 묶음으로 본다.
 fn rows_of(c: &Connection, school_year: i32, class: &ClassRef) -> AppResult<Vec<Row>> {
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT e.student_id, s.name, e.class_no
            FROM enrollments e
            JOIN students s ON s.id = e.student_id
           WHERE e.school_year = ?1
             AND e.grade = ?2
             AND ((e.class_name IS NULL AND ?3 IS NULL) OR e.class_name = ?3)
-            AND e.status IN ('ENROLLED','TRANSFER_IN')
+            AND e.{ACTIVE}
           ORDER BY CASE WHEN e.class_no IS NULL THEN 1 ELSE 0 END, e.class_no, s.name",
-    )?;
+    ))?;
     let rows = st
         .query_map(params![school_year, class.grade, class.class_name], |r| {
             Ok(Row {

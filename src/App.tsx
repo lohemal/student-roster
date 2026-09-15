@@ -10,6 +10,8 @@ import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { AddressRulesPage } from '@/pages/AddressRulesPage'
 import { ImportPage } from '@/pages/ImportPage'
 import { IssuesPage } from '@/pages/IssuesPage'
+import { TransferInPage } from '@/pages/TransferInPage'
+import { TransferOutPage } from '@/pages/TransferOutPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { StudentsPage } from '@/pages/StudentsPage'
 import { WelcomePage } from '@/pages/WelcomePage'
@@ -73,26 +75,8 @@ export function App() {
         >
           <Route path="/students" element={<StudentsPage />} />
           <Route path="/students/import" element={<ImportPage />} />
-          <Route
-            path="/transfer-in"
-            element={
-              <PlaceholderPage
-                title="전입생"
-                phase={6}
-                description="전입 등록 시 학년별 반·성별 학생수를 함께 보여 줍니다."
-              />
-            }
-          />
-          <Route
-            path="/transfer-out"
-            element={
-              <PlaceholderPage
-                title="전출생"
-                phase={6}
-                description="전출 처리한 학생과 시스템 도입 이전 전출생을 관리합니다."
-              />
-            }
-          />
+          <Route path="/transfer-in" element={<TransferInPage />} />
+          <Route path="/transfer-out" element={<TransferOutPage />} />
           <Route path="/issues" element={<IssuesPage />} />
           <Route path="/address-rules" element={<AddressRulesPage />} />
           <Route

@@ -2,6 +2,7 @@
 
 use rusqlite::{params, Connection, OptionalExtension};
 
+use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
 use crate::error::{AppError, AppResult};
 
 pub fn get(c: &Connection, key: &str) -> AppResult<Option<String>> {
@@ -31,13 +32,13 @@ pub struct SchoolYear {
 }
 
 pub fn list_years(c: &Connection) -> AppResult<Vec<SchoolYear>> {
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT y.year, y.is_current, y.created_at,
                 (SELECT COUNT(*) FROM enrollments e
-                  WHERE e.school_year = y.year AND e.status IN ('ENROLLED','TRANSFER_IN'))
+                  WHERE e.school_year = y.year AND e.{ACTIVE})
            FROM school_years y
           ORDER BY y.year DESC",
-    )?;
+    ))?;
     let rows = st
         .query_map([], |r| {
             Ok(SchoolYear {

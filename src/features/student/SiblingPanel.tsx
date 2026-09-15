@@ -92,6 +92,7 @@ export function SiblingPanel({ studentId, studentName, schoolYear, onChanged }: 
             <div key={v.linkId} className={`${s.card} ${s.cardCandidate}`}>
               <div className={s.head}>
                 <span className={s.name}>{v.label}</span>
+                {v.partnerNote && <Badge tone="neutral">{v.partnerNote}</Badge>}
                 <Badge tone={STATUS_TONE[v.status]}>{v.statusLabel}</Badge>
               </div>
               <Reasons view={v} />
@@ -205,6 +206,7 @@ function ConfirmedCard({
     <div className={`${s.card} ${s.cardConfirmed}`}>
       <div className={s.head}>
         <span className={s.name}>{view.label}</span>
+        {view.partnerNote && <Badge tone="neutral">{view.partnerNote}</Badge>}
         <Badge tone="success">{view.statusLabel}</Badge>
         <Button size="sm" variant="ghost" onClick={onReset}>
           관계 다시 검토

@@ -25,6 +25,8 @@ export interface SiblingView {
   conflicts: FieldView[]
   /** 형제에게는 있고 나에게는 없는 항목 */
   fillable: FieldView[]
+  /** 지금 함께 다니지 않으면 그 까닭 (전출 / 지난 학년도) */
+  partnerNote: string | null
   foundAt: string
   decidedAt: string | null
 }

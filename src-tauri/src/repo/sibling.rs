@@ -11,11 +11,13 @@
 //!   * 표시 글(`1-나리 홍길동`)은 저장하지 않는다. 진급하면 저절로 바뀌어야 하므로
 //!     볼 때마다 지금 학적으로 만든다.
 
+use chrono::NaiveDate;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
 use crate::domain::label;
 use crate::domain::sibling::{self, Comparison, Entry, Field, Guardians};
+use crate::domain::enroll::{self, ACTIVE_STATUS_SQL as ACTIVE};
 use crate::error::{AppError, AppResult};
 
 // ---------------------------------------------------------------
@@ -27,14 +29,14 @@ use crate::error::{AppError, AppResult};
 /// 전출·졸업한 학생은 훑기에서 뺀다. 관계 자체는 학생 번호로 남으므로
 /// 지난 기록은 그대로 볼 수 있다.
 pub fn active_entries(c: &Connection, school_year: i32) -> AppResult<Vec<Entry>> {
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT s.id, s.father_name, s.mother_name, s.father_phone, s.mother_phone
            FROM students s
            JOIN enrollments e ON e.student_id = s.id
-          WHERE e.school_year = ?1 AND e.status IN ('ENROLLED','TRANSFER_IN')
+          WHERE e.school_year = ?1 AND e.{ACTIVE}
             AND NOT EXISTS (SELECT 1 FROM graduations g WHERE g.student_id = s.id)
           ORDER BY s.id",
-    )?;
+    ))?;
     let rows = st
         .query_map([school_year], |r| {
             Ok(Entry {
@@ -165,6 +167,8 @@ pub struct SiblingView {
     pub conflicts: Vec<FieldView>,
     /// 형제에게는 있고 나에게는 없는 항목 — 가져올 수 있다
     pub fillable: Vec<FieldView>,
+    /// 지금 함께 다니지 않으면 그 까닭 (`전출` / `지난 학년도`). 관계는 그대로 남는다.
+    pub partner_note: Option<String>,
     pub found_at: String,
     pub decided_at: Option<String>,
 }
@@ -260,6 +264,7 @@ pub fn list_for_student(
             } else {
                 Vec::new()
             },
+            partner_note: partner_note(c, other, school_year)?,
             status: link.status,
             found_at,
             decided_at,
@@ -284,8 +289,45 @@ pub struct SiblingBrief {
     pub text: String,
 }
 
+/// 그 학년도에 이 학생이 어떤 상태인지. 지금 학적이 없으면 None.
+///
+/// 형제가 전출했거나 지난 학년도 학생이면 표시를 달리해야 한다 — 관계는 그대로
+/// 두되 **지금 본교에 함께 다니는 것은 아니라는 사실**을 알려 주기 위해서다.
+fn status_in_year(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Option<String>> {
+    Ok(c.query_row(
+        "SELECT status FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
+        params![student_id, school_year],
+        |r| r.get(0),
+    )
+    .optional()?)
+}
+
+/// 지금 본교에 함께 다니는 형제인가.
+fn together_now(c: &Connection, student_id: i64, school_year: i32) -> AppResult<bool> {
+    Ok(status_in_year(c, student_id, school_year)?
+        .and_then(|s| enroll::Status::parse(&s))
+        .map(|s| s.is_active())
+        .unwrap_or(false))
+}
+
+/// 형제 이름표 뒤에 붙일 말. 함께 다니고 있으면 None.
+fn partner_note(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Option<String>> {
+    Ok(match status_in_year(c, student_id, school_year)? {
+        Some(s) if s == "TRANSFER_OUT" => Some("전출".into()),
+        Some(_) => None,
+        None => Some("지난 학년도".into()),
+    })
+}
+
 pub fn brief(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Option<SiblingBrief>> {
-    let partners = confirmed_partners(c, student_id)?;
+    // **지금 함께 다니는** 형제만 센다. 전출한 형제는 관계가 남아 있어도
+    // '본교 형제' 수에는 들지 않는다 — 명단의 숫자는 현재를 말해야 한다.
+    let mut partners = Vec::new();
+    for p in confirmed_partners(c, student_id)? {
+        if together_now(c, p, school_year)? {
+            partners.push(p);
+        }
+    }
     Ok(match partners.len() {
         0 => None,
         1 => Some(SiblingBrief {
@@ -581,6 +623,67 @@ pub fn scan(
     on_progress("GUARDIAN", 1, 1);
 
     Ok(out)
+}
+
+/// 학생 **한 명**에 걸린 형제 후보만 찾는다. 새로 생긴 후보 수를 돌려준다.
+///
+/// 전입생 한 명 때문에 학교 전체를 다시 훑을 까닭은 없다. 버킷을 만드는 값도,
+/// 견주는 규칙도 전체 훑기와 똑같고 **쓰는 범위만** 이 학생이 낀 쌍으로 좁힌다.
+/// 그래서 결과가 전체 훑기와 어긋나지 않는다.
+///
+/// 사용자가 이미 정한 관계(CONFIRMED·REJECTED)는 여기서도 건드리지 않는다.
+pub fn scan_for_student(
+    c: &Connection,
+    school_year: i32,
+    student_id: i64,
+    today: NaiveDate,
+) -> AppResult<i64> {
+    let entries = active_entries(c, school_year)?;
+    if !entries.iter().any(|e| e.student_id == student_id) {
+        return Ok(0); // 지금 다니지 않는 학생이면 찾을 것이 없다
+    }
+    let found = sibling::find_pairs(&entries);
+    let by_id: std::collections::HashMap<i64, &Guardians> = entries
+        .iter()
+        .map(|e| (e.student_id, &e.guardians))
+        .collect();
+
+    let mut new_candidates = 0;
+    let mut touched: Vec<i64> = vec![student_id];
+
+    for (a, b) in found.pairs.iter().filter(|(a, b)| *a == student_id || *b == student_id) {
+        let (Some(ga), Some(gb)) = (by_id.get(a), by_id.get(b)) else {
+            continue;
+        };
+        let cmp = sibling::compare(ga, gb);
+        if !cmp.is_candidate() {
+            continue;
+        }
+        match find_link(c, *a, *b)? {
+            Some(link) => save_fields(c, link.id, &cmp)?,
+            None => {
+                c.execute(
+                    "INSERT INTO sibling_links(
+                        student_a, student_b, status, source, matched_fields, conflict_fields)
+                     VALUES (?1,?2,'CANDIDATE','AUTO',?3,?4)",
+                    params![
+                        a,
+                        b,
+                        sibling::to_json(&cmp.matched),
+                        sibling::to_json(&cmp.conflicts)
+                    ],
+                )?;
+                new_candidates += 1;
+            }
+        }
+        touched.push(if *a == student_id { *b } else { *a });
+    }
+
+    // 걸린 학생들만 표시를 다시 맞춘다
+    for id in touched {
+        crate::repo::student::sync_issues(c, id, school_year, today)?;
+    }
+    Ok(new_candidates)
 }
 
 #[cfg(test)]

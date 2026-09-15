@@ -73,3 +73,10 @@ export function rangeLabel(total: number, offset: number, shown: number): string
   const to = offset + shown
   return `${total.toLocaleString('ko-KR')}명 중 ${from.toLocaleString('ko-KR')}–${to.toLocaleString('ko-KR')}`
 }
+
+/** `2026-05-14` → `2026.05.14.` 빈 값이면 빈 문자열 */
+export function dotDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return m ? `${m[1]}.${m[2]}.${m[3]}.` : iso
+}

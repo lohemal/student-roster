@@ -126,6 +126,7 @@ CREATE TABLE enrollments (
   status             TEXT NOT NULL DEFAULT 'ENROLLED' CHECK (status IN ('ENROLLED', 'TRANSFER_IN', 'TRANSFER_OUT')),
   transfer_in_date   TEXT,                              -- 가장 최근 전입일 (원본은 events)
   transfer_out_date  TEXT,                              -- 가장 최근 전출일 (원본은 events)
+  transfer_out_to    TEXT,                              -- 전출 간 학교·지역 (아는 만큼만)
   transfer_out_note  TEXT,
   created_at         TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at         TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),

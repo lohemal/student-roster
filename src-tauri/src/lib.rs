@@ -63,6 +63,15 @@ pub fn run() {
             // 학생 번호 재정렬
             commands::renumber::renumber_preview,
             commands::renumber::renumber_apply,
+            // 전입 · 전출
+            commands::transfer::transfer_search_students,
+            commands::transfer::transfer_class_counts,
+            commands::transfer::transfer_used_numbers,
+            commands::transfer::transfer_list,
+            commands::transfer::transfer_in,
+            commands::transfer::transfer_out,
+            commands::transfer::transfer_out_cancel,
+            commands::transfer::transfer_past_out,
             // 엑셀 가져오기
             commands::import::import_inspect,
             commands::import::import_preview,

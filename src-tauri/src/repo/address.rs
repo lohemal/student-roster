@@ -12,6 +12,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
 use crate::domain::address::{self, CategoryRef, Decision, Parsed, RuleKind, RuleRef};
+use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
 use crate::error::{AppError, AppResult};
 
 // ---------------------------------------------------------------
@@ -251,17 +252,17 @@ pub struct CategoryRow {
 }
 
 pub fn list_categories(c: &Connection, school_year: i32) -> AppResult<Vec<CategoryRow>> {
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT ac.id, ac.name, ac.sort_order, ac.is_builtin,
                 (SELECT COUNT(*) FROM students s
                    JOIN enrollments e ON e.student_id = s.id
                   WHERE s.address_category_id = ac.id
                     AND e.school_year = ?1
-                    AND e.status IN ('ENROLLED','TRANSFER_IN')),
+                    AND e.{ACTIVE}),
                 (SELECT COUNT(*) FROM address_rules r WHERE r.category_id = ac.id)
            FROM address_categories ac
           ORDER BY ac.sort_order, ac.id",
-    )?;
+    ))?;
     let rows = st
         .query_map([school_year], |r| {
             Ok(CategoryRow {
@@ -378,19 +379,19 @@ pub struct RuleRow {
 }
 
 pub fn list_rules(c: &Connection, school_year: i32) -> AppResult<Vec<RuleRow>> {
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT r.id, r.kind, r.pattern, r.category_id, ac.name, r.is_active, r.note,
                 (SELECT COUNT(*) FROM students s
                    JOIN enrollments e ON e.student_id = s.id
                   WHERE s.address_rule_id = r.id
                     AND e.school_year = ?1
-                    AND e.status IN ('ENROLLED','TRANSFER_IN')),
+                    AND e.{ACTIVE}),
                 r.created_at
            FROM address_rules r
            JOIN address_categories ac ON ac.id = r.category_id
           ORDER BY CASE r.kind WHEN 'ROAD' THEN 0 WHEN 'COMPLEX' THEN 1 ELSE 2 END,
                    r.pattern",
-    )?;
+    ))?;
     let rows = st
         .query_map([school_year], |r| {
             let kind: String = r.get(1)?;
@@ -513,13 +514,13 @@ pub fn count_matching(
 ) -> AppResult<Matching> {
     let (k, p) = check_rule(kind, pattern)?;
 
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT s.id, s.address_raw, s.address_source
            FROM students s
            JOIN enrollments e ON e.student_id = s.id
-          WHERE e.school_year = ?1 AND e.status IN ('ENROLLED','TRANSFER_IN')
+          WHERE e.school_year = ?1 AND e.{ACTIVE}
             AND s.address_raw IS NOT NULL",
-    )?;
+    ))?;
     let rows: Vec<(i64, String, String)> = st
         .query_map([school_year], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
         .collect::<rusqlite::Result<_>>()?;
@@ -584,13 +585,13 @@ pub fn reapply(
     school_year: i32,
     mut on_progress: impl FnMut(usize, usize),
 ) -> AppResult<ReapplyResult> {
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT s.id, s.address_raw, s.address_source, s.address_category_id
            FROM students s
            JOIN enrollments e ON e.student_id = s.id
-          WHERE e.school_year = ?1 AND e.status IN ('ENROLLED','TRANSFER_IN')
+          WHERE e.school_year = ?1 AND e.{ACTIVE}
           ORDER BY s.id",
-    )?;
+    ))?;
     let rows: Vec<(i64, Option<String>, String, Option<i64>)> = st
         .query_map([school_year], |r| {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
@@ -644,14 +645,14 @@ pub fn apply_rule(c: &Connection, rule_id: i64, school_year: i32) -> AppResult<i
         .ok_or_else(|| AppError::not_found("주소 규칙을 찾을 수 없습니다."))?;
     let k = RuleKind::parse(&kind).unwrap_or(RuleKind::Contains);
 
-    let mut st = c.prepare(
+    let mut st = c.prepare(&format!(
         "SELECT s.id, s.address_raw, s.address_category_id
            FROM students s
            JOIN enrollments e ON e.student_id = s.id
-          WHERE e.school_year = ?1 AND e.status IN ('ENROLLED','TRANSFER_IN')
+          WHERE e.school_year = ?1 AND e.{ACTIVE}
             AND s.address_source <> 'MANUAL'
             AND s.address_raw IS NOT NULL",
-    )?;
+    ))?;
     let rows: Vec<(i64, String, Option<i64>)> = st
         .query_map([school_year], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
         .collect::<rusqlite::Result<_>>()?;

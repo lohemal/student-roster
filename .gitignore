@@ -28,3 +28,6 @@ src-tauri/gen/
 # 내보낸 CSV / 백업
 exports/
 backups/
+
+# 시험용으로 만든 엑셀
+scratch/

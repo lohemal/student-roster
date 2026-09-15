@@ -195,7 +195,7 @@ export function StudentForm({ value, onChange, classSuggestions = [] }: Props) {
             <Input
               value={value.addressRaw}
               onChange={(e) => set('addressRaw', e.target.value)}
-              placeholder="예: 세종특별자치시 한누리대로 123, 101동 1001호(가온마을5단지)"
+              placeholder="예: ○○시 ○○로 123, 101동 1001호(○○마을1단지)"
               maxLength={200}
             />
           </Field>

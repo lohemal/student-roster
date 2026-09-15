@@ -101,13 +101,13 @@ mod tests {
     #[test]
     fn 설정값을_저장하고_읽는다() {
         let db = Db::memory();
-        db.write(|c| set(c, "school_name", "한솔초등학교")).unwrap();
+        db.write(|c| set(c, "school_name", "○○초등학교")).unwrap();
         let v = db.read(|c| get(c, "school_name")).unwrap();
-        assert_eq!(v.as_deref(), Some("한솔초등학교"));
+        assert_eq!(v.as_deref(), Some("○○초등학교"));
 
-        db.write(|c| set(c, "school_name", "새솔초등학교")).unwrap();
+        db.write(|c| set(c, "school_name", "△△초등학교")).unwrap();
         let v = db.read(|c| get(c, "school_name")).unwrap();
-        assert_eq!(v.as_deref(), Some("새솔초등학교"), "덮어쓰기");
+        assert_eq!(v.as_deref(), Some("△△초등학교"), "덮어쓰기");
     }
 
     #[test]

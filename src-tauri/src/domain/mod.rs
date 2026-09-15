@@ -4,5 +4,6 @@
 //! 모든 함수는 단위 테스트를 가진다.
 
 pub mod birth;
+pub mod korean;
 pub mod label;
 pub mod phone;

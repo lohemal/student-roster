@@ -10,7 +10,7 @@ use chrono::NaiveDate;
 use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::{birth, label, phone};
+use crate::domain::{birth, korean, label, phone};
 use crate::error::{AppError, AppResult};
 use crate::repo::issue::{self, IssueKind, IssueRow};
 
@@ -347,6 +347,48 @@ pub fn update(
     Ok(())
 }
 
+/// 그 학년도 학적이 없으면 만든다. 이미 있으면 아무것도 하지 않는다.
+///
+/// 지난 학년도에만 있던 학생이 올해 명단에 나타났을 때 쓴다 (가져오기·전환).
+/// 만들 때는 `ENROLL` 사건도 함께 남긴다.
+pub fn ensure_enrollment(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    grade: i32,
+    class_name: Option<&str>,
+    class_no: Option<i32>,
+    source: &str,
+) -> AppResult<bool> {
+    let exists: i64 = c.query_row(
+        "SELECT COUNT(*) FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
+        params![student_id, school_year],
+        |r| r.get(0),
+    )?;
+    if exists > 0 {
+        return Ok(false);
+    }
+
+    c.execute(
+        "INSERT INTO enrollments(student_id, school_year, grade, class_name, class_no, status)
+         VALUES (?1,?2,?3,?4,?5,'ENROLLED')",
+        params![student_id, school_year, grade, class_name, class_no],
+    )?;
+    add_event(
+        c,
+        student_id,
+        school_year,
+        "ENROLL",
+        None,
+        grade,
+        class_name,
+        class_no,
+        None,
+        source,
+    )?;
+    Ok(true)
+}
+
 /// 입력 실수를 되돌리기 위한 삭제. 학생과 딸린 자료가 모두 사라진다.
 ///
 /// 졸업 기록이 있는 학생은 막는다 — 지난 자료를 실수로 지우는 일이 없도록.
@@ -488,7 +530,7 @@ pub fn sync_issues(
     let missing_msg = if missing.is_empty() {
         None
     } else {
-        Some(format!("{}이(가) 비어 있습니다.", missing.join(", ")))
+        Some(korean::list_with_subject(&missing, "비어 있습니다."))
     };
     issue::set(
         c,
@@ -513,7 +555,7 @@ pub fn sync_issues(
     let class_msg = if unset.is_empty() {
         None
     } else {
-        Some(format!("{}이(가) 정해지지 않았습니다.", unset.join("· ")))
+        Some(korean::list_with_subject(&unset, "정해지지 않았습니다."))
     };
     issue::set(
         c,

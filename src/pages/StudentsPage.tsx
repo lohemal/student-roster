@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft,
   ChevronRight,
   ListFilter as FilterIcon,
+  FileSpreadsheet,
   Search,
   SlidersHorizontal,
   UserPlus,
@@ -61,6 +63,7 @@ const EMPTY_ADVANCED: Advanced = {
 
 export function StudentsPage() {
   const qc = useQueryClient()
+  const nav = useNavigate()
   const settings = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get })
   const schoolYear = settings.data?.currentYear ?? null
 
@@ -167,9 +170,18 @@ export function StudentsPage() {
       title="학생명단"
       year={yearLabel(schoolYear)}
       actions={
-        <Button variant="primary" icon={UserPlus} onClick={() => setOpenStudent(null)}>
-          학생 등록
-        </Button>
+        <>
+          <Button
+            variant="outline"
+            icon={FileSpreadsheet}
+            onClick={() => nav('/students/import')}
+          >
+            가져오기
+          </Button>
+          <Button variant="primary" icon={UserPlus} onClick={() => setOpenStudent(null)}>
+            학생 등록
+          </Button>
+        </>
       }
     >
       <ErrorNotice error={list.error ?? classOptions.error} />
@@ -334,7 +346,7 @@ export function StudentsPage() {
           description={
             hasFilter
               ? '검색어나 조건을 바꿔 보세요.'
-              : '오른쪽 위 [학생 등록]으로 한 명씩 넣거나, Phase 2에서 만들 Excel 가져오기로 한 번에 넣을 수 있습니다.'
+              : '오른쪽 위 [학생 등록]으로 한 명씩 넣거나, [가져오기]로 엑셀 명단을 한 번에 넣을 수 있습니다.'
           }
           action={
             hasFilter ? (

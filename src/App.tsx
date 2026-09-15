@@ -7,6 +7,7 @@ import { errorDetail, errorMessage } from '@/ipc/invoke'
 import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { ImportPage } from '@/pages/ImportPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { StudentsPage } from '@/pages/StudentsPage'
 import { WelcomePage } from '@/pages/WelcomePage'
@@ -69,6 +70,7 @@ export function App() {
           }
         >
           <Route path="/students" element={<StudentsPage />} />
+          <Route path="/students/import" element={<ImportPage />} />
           <Route
             path="/transfer-in"
             element={

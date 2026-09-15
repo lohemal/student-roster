@@ -68,7 +68,7 @@ export function SettingsPage() {
                 <Input
                   value={schoolName}
                   onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="예: 한솔초등학교"
+                  placeholder="예: ○○초등학교"
                   maxLength={50}
                 />
               </Field>

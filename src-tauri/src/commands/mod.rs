@@ -3,6 +3,7 @@
 //! 명령은 입력 검증과 `repo`/`domain` 호출만 하고, 규칙은 두지 않는다.
 
 pub mod app;
+pub mod import;
 pub mod issue;
 pub mod settings;
 pub mod student;

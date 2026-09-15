@@ -1,0 +1,362 @@
+/* ---------- 단계 표시 ---------- */
+
+.steps {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stepNow {
+  background: var(--primary-soft);
+  color: var(--primary-text);
+}
+
+.stepDone {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.stepNum {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stepNow .stepNum {
+  background: var(--primary);
+  color: var(--white);
+}
+
+.stepDone .stepNum {
+  background: var(--success);
+  color: var(--white);
+}
+
+.stepArrow {
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+/* ---------- 공통 ---------- */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.footSpacer {
+  flex: 1;
+}
+
+.fileBox {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.fileName {
+  font-weight: 700;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filePath {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  word-break: break-all;
+}
+
+/* ---------- 시트 고르기 ---------- */
+
+.sheetList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--sp-2);
+}
+
+.sheetBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  text-align: left;
+}
+
+.sheetBtn:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.sheetOn,
+.sheetOn:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.sheetName {
+  font-weight: 700;
+}
+
+.sheetMeta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+/* ---------- 열 연결 ---------- */
+
+.mapGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--sp-3);
+}
+
+.mapItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.mapItemDup {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+
+.mapItemMissing {
+  border-color: var(--error-border);
+  background: var(--error-soft);
+}
+
+.mapLabel {
+  width: 104px;
+  flex: 0 0 104px;
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+
+.mapRequired {
+  color: var(--error-text);
+  margin-left: 2px;
+}
+
+.mapSelect {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.previewCell {
+  max-width: 180px;
+  font-size: var(--fs-sm);
+}
+
+/* ---------- 분석 결과 ---------- */
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--sp-2);
+}
+
+.tile {
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  text-align: center;
+}
+
+.tileNum {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.tileLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.tileAdd .tileNum { color: var(--primary-text); }
+.tileUpdate .tileNum { color: var(--success-text); }
+.tileWarn .tileNum { color: var(--warn-text); }
+.tileError .tileNum { color: var(--error-text); }
+
+.changeList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.change {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.changeField {
+  color: var(--text-muted);
+  min-width: 76px;
+}
+
+.changeBefore {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.changeAfter {
+  color: var(--success-text);
+  font-weight: 600;
+}
+
+.reason {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  white-space: normal;
+}
+
+.candidates {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  margin-top: 2px;
+  white-space: normal;
+}
+
+.wideCell {
+  white-space: normal !important;
+  max-width: 460px !important;
+}
+
+/* ---------- 진행률 ---------- */
+
+.progressWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  align-items: center;
+  padding: var(--sp-8) var(--sp-4);
+  text-align: center;
+}
+
+.bar {
+  width: 100%;
+  max-width: 460px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  transition: width 0.2s ease;
+}
+
+.percent {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.progressCount {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.progressStage {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.doneMark {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--success-soft);
+  color: var(--success-text);
+  display: grid;
+  place-items: center;
+}
+
+.resultList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 380px;
+  margin-top: var(--sp-2);
+}
+
+.resultRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-base);
+}
+
+.resultRow:last-child {
+  border-bottom: none;
+}
+
+.resultNum {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

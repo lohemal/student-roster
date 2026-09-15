@@ -2,6 +2,8 @@ mod commands;
 mod db;
 mod domain;
 pub mod error;
+mod import;
+mod job;
 mod repo;
 
 use std::sync::Arc;
@@ -9,9 +11,12 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use crate::db::Db;
+use crate::import::SessionStore;
 
 pub struct AppState {
     pub db: Arc<Db>,
+    /// 분석해 둔 가져오기를 적용할 때까지 들고 있는 자리
+    pub import: Arc<SessionStore>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -30,7 +35,10 @@ pub fn run() {
                 db.schema_version()?
             );
 
-            app.manage(AppState { db: Arc::new(db) });
+            app.manage(AppState {
+                db: Arc::new(db),
+                import: Arc::new(SessionStore::default()),
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -51,6 +59,12 @@ pub fn run() {
             // 확인 필요
             commands::issue::issue_summary,
             commands::issue::issue_recompute,
+            // 엑셀 가져오기
+            commands::import::import_inspect,
+            commands::import::import_preview,
+            commands::import::import_analyze,
+            commands::import::import_apply,
+            commands::import::import_history,
         ])
         .run(tauri::generate_context!())
         .expect("학생명단 관리 시스템을 시작하지 못했습니다.");

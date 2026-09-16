@@ -438,11 +438,10 @@ pub fn alime(rows: &[Row], school_year: i32, by: Grouping) -> ExportPlan {
                                 r.father_phone.as_deref(),
                             )
                             .unwrap_or_default();
-                            vec![
-                                r.name.clone(),
-                                phone,
-                                export::alime_note(r.grade, r.class_name.as_deref(), r.class_no),
-                            ]
+                            // 비고는 **언제나 빈칸**이다. 알림e 양식의 열은 그대로 두되
+                            // 학적(3-나리-7)을 적지 않는다 — 문자에 함께 나가도 되는
+                            // 값이 아니고, 학교가 쓰던 비고를 덮어 버리지도 않는다.
+                            vec![r.name.clone(), phone, String::new()]
                         })
                         .collect(),
                 }],

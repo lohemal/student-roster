@@ -1,0 +1,132 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+/* ---------- 머리 ---------- */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.headIcon {
+  color: var(--text-muted);
+  flex: none;
+}
+
+.headTitle {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.headHint {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* ---------- 확인 ---------- */
+
+.askBody {
+  margin-top: 6px;
+  font-size: var(--fs-sm);
+}
+
+.askRow {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/* ---------- 후보 목록 ---------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.item:last-child {
+  border-bottom: 0;
+}
+
+/* 고르지 않은 줄은 흐리게 — 색만으로 뜻을 전하지 않으므로 체크 상자가 함께 있다 */
+.item:not(.itemOn) .pair {
+  color: var(--text-faint);
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.arrow {
+  color: var(--text-faint);
+}
+
+.why {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+  font-size: var(--fs-sm);
+}
+
+.conflict {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--error-text);
+}

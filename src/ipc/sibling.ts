@@ -49,11 +49,40 @@ export interface ScanResult {
   skippedValues: number
 }
 
+/** 확인 필요 화면에 떠 있는 형제 후보 한 쌍 */
+export interface CandidateRow {
+  linkId: number
+  studentA: number
+  labelA: string
+  studentB: number
+  labelB: string
+  /** 후보로 본 근거 — `부 성명`, `모 연락처` */
+  matched: string[]
+  /** 양쪽 다 값이 있는데 서로 다른 항목 */
+  conflicts: string[]
+  foundAt: string
+}
+
+/** 일괄 확정 결과 */
+export interface BatchConfirm {
+  confirmed: number
+  already: number
+  /** '형제 아님' 으로 정해 둔 것이라 건드리지 않은 수 */
+  skipped: number
+  students: number[]
+}
+
 export const siblingApi = {
   list: (studentId: number, schoolYear: number) =>
     invoke<SiblingView[]>('sibling_list', { studentId, schoolYear }),
   confirm: (linkId: number, schoolYear: number) =>
     invoke<void>('sibling_confirm', { linkId, schoolYear }),
+  /** 확인 필요 화면의 형제 후보를 쌍마다 한 줄로 */
+  candidates: (schoolYear: number) =>
+    invoke<CandidateRow[]>('sibling_candidates', { schoolYear }),
+  /** 고른 후보를 한 트랜잭션에서 확정한다 — 절반만 확정되지 않는다 */
+  confirmMany: (linkIds: number[], schoolYear: number) =>
+    invoke<BatchConfirm>('sibling_confirm_many', { linkIds, schoolYear }),
   reject: (linkId: number, schoolYear: number) =>
     invoke<void>('sibling_reject', { linkId, schoolYear }),
   reset: (linkId: number, schoolYear: number) =>

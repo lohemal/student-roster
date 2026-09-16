@@ -350,11 +350,18 @@
   background: var(--primary-soft);
 }
 
+/*
+  정렬은 머리글과 값이 **같은 열 이름**으로 정한다. `.table thead th` 가
+  `text-align: left` 를 요소로 못 박으면 그 쪽이 이겨, 머리글만 왼쪽에 남고
+  아래 숫자는 오른쪽으로 가 표가 어긋나 보인다.
+*/
+.table thead th.num,
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
+.table thead th.center,
 .center {
   text-align: center;
 }

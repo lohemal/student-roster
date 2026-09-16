@@ -363,7 +363,9 @@ fn many(n: usize, grade: i32) -> Vec<Row> {
                 grade,
                 Some("가람"),
                 Some((i % 40) as i32 + 1),
-                &format!("학생{i:04}"),
+                // 이름에 학년을 넣어 둔다 — 파일이 나뉜 뒤에 누가 어느 파일에
+                // 들어갔는지 볼 수 있는 값이 이름뿐이기 때문이다(비고는 빈칸이다)
+                &format!("{grade}학년학생{i:04}"),
             )
         })
         .collect()
@@ -377,7 +379,7 @@ fn 알림e는_이름_전화번호_비고_세_열이다() {
     let (name, table) = &sheets[0];
     assert_eq!(name, "문자명단");
     assert_eq!(table[0], vec!["이름", "전화번호", "비고"]);
-    assert_eq!(table[1], vec!["가학생", "010-1000-0001", "3-나리-7"]);
+    assert_eq!(table[1], vec!["가학생", "010-1000-0001", ""]);
 }
 
 #[test]
@@ -431,7 +433,8 @@ fn 알림e는_열다섯자를_넘는_값을_자르지_않고_알린다() {
 }
 
 #[test]
-fn 알림e_비고는_언제나_열다섯자_안이다() {
+fn 알림e_비고는_어떤_학생이든_빈칸이다() {
+    // 반이 긴 학생, 번호만 있는 학생, 반도 번호도 없는 학생 — 어느 쪽도 학적을 적지 않는다
     let rows = vec![
         row(1, 3, Some("아주아주아주긴반이름"), Some(7), "가학생"),
         row(2, 6, Some("2"), Some(200), "나학생"),
@@ -439,8 +442,32 @@ fn 알림e_비고는_언제나_열다섯자_안이다() {
     ];
     let plan = preset::alime(&rows, 2026, Grouping::All);
     let sheets = round_trip(&plan, "alnote");
-    for line in &sheets[0].1[1..] {
-        assert!(line[2].chars().count() <= 15, "{}", line[2]);
+    let table = &sheets[0].1;
+    assert_eq!(table[0], vec!["이름", "전화번호", "비고"], "열은 그대로 셋");
+    for line in &table[1..] {
+        assert_eq!(line.len(), 3, "비고 열이 사라지면 안 된다: {line:?}");
+        assert_eq!(line[2], "", "비고: {line:?}");
+    }
+}
+
+#[test]
+fn 알림e_학년별_학년반별_파일도_비고가_빈칸이다() {
+    let rows = vec![
+        row(1, 3, Some("나리"), Some(1), "가학생"),
+        row(2, 3, Some("가람"), Some(2), "나학생"),
+        row(3, 4, Some("다솜"), Some(3), "다학생"),
+    ];
+    for (tag, by) in [("학년별", Grouping::Grade), ("학년반별", Grouping::GradeClass)] {
+        let plan = preset::alime(&rows, 2026, by);
+        assert!(plan.files.len() > 1, "{tag}: 파일이 나뉘어야 한다");
+        let dir = tmp_dir("alnotegroup");
+        for path in write_plan(&plan, &dir).unwrap() {
+            let table = &read_back(&path)[0].1;
+            assert_eq!(table[0], vec!["이름", "전화번호", "비고"], "{tag}");
+            for line in &table[1..] {
+                assert_eq!(line[2], "", "{tag} / {line:?}");
+            }
+        }
     }
 }
 
@@ -511,8 +538,10 @@ fn 묶은_뒤에_천명씩_자른다() {
     assert_eq!(made.len(), 5);
     for (name, table) in read_back(&made[2]) {
         assert_eq!(name, "문자명단");
+        assert_eq!(table.len(), 1001, "머리글 + 1,000명");
         for line in &table[1..] {
-            assert!(line[2].starts_with("3-"), "{} 는 3학년이 아니다", line[2]);
+            assert!(line[0].starts_with("3학년"), "{} 는 3학년이 아니다", line[0]);
+            assert_eq!(line[2], "", "비고는 빈칸이다");
         }
     }
 }

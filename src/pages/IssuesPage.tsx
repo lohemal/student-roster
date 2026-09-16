@@ -22,6 +22,7 @@ import {
   tableClass,
   type Tone,
 } from '@/components/ui'
+import { SiblingBatch } from '@/features/student/SiblingBatch'
 import { StudentDrawer } from '@/features/student/StudentDrawer'
 import { issueApi, type IssueFilter, type IssueListRow } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
@@ -114,6 +115,7 @@ export function IssuesPage() {
     qc.invalidateQueries({ queryKey: ['issue-summary'] })
     qc.invalidateQueries({ queryKey: ['students'] })
     qc.invalidateQueries({ queryKey: ['siblings'] })
+    qc.invalidateQueries({ queryKey: ['sibling-candidates'] })
   }
 
   const recompute = useMutation({
@@ -196,6 +198,11 @@ export function IssuesPage() {
                 type="button"
                 className={kind === k.kind ? `${s.kind} ${s.kindOn}` : s.kind}
                 onClick={() => setKind(kind === k.kind ? '' : k.kind)}
+                title={
+                  k.kind === 'SIBLING_CANDIDATE'
+                    ? '형제 후보를 골라 한 번에 확정할 수 있습니다'
+                    : undefined
+                }
               >
                 {k.kindLabel}
                 <span className={s.kindNum}>{k.count.toLocaleString('ko-KR')}</span>
@@ -312,6 +319,14 @@ export function IssuesPage() {
           )}
         </div>
       </div>
+
+      {/*
+        형제 후보만 모아 볼 때는 한 번에 확정할 수 있게 한다. 후보마다 학생 상세를
+        열어 [형제로 확인] 을 누르면 학년 전체에서는 감당할 수 없는 작업량이 된다.
+      */}
+      {kind === 'SIBLING_CANDIDATE' && (
+        <SiblingBatch schoolYear={schoolYear} onChanged={refresh} />
+      )}
 
       {rows.length === 0 && !list.isFetching ? (
         <Empty

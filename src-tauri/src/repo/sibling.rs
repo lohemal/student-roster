@@ -710,6 +710,160 @@ pub fn labels_of(c: &Connection, student_id: i64, school_year: i32) -> AppResult
     Ok(out)
 }
 
+// ---------------------------------------------------------------
+// 후보 한꺼번에 확정하기
+// ---------------------------------------------------------------
+
+/// 확인 필요 화면에 떠 있는 형제 후보 **한 쌍**.
+///
+/// 한 관계는 학생 둘에게 각각 표시가 뜬다. 여기서는 쌍마다 한 줄만 준다 —
+/// 같은 관계를 두 번 확정할 까닭이 없기 때문이다.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CandidateRow {
+    pub link_id: i64,
+    pub student_a: i64,
+    /// `3-나리 홍길동` — 지금 학적으로 그때그때 만든다
+    pub label_a: String,
+    pub student_b: i64,
+    pub label_b: String,
+    /// 후보로 본 근거 — `부 성명`, `모 연락처` 처럼
+    pub matched: Vec<String>,
+    /// 양쪽 다 값이 있는데 서로 다른 항목. 확정 전에 한 번 더 보라는 뜻이다.
+    pub conflicts: Vec<String>,
+    pub found_at: String,
+}
+
+/// 그 학년도 확인 필요 목록에 떠 있는 형제 후보.
+///
+/// 목록 화면과 **같은 것**을 보여야 하므로, 열려 있는 `SIBLING_CANDIDATE` 표시가
+/// 걸린 관계만 고른다. 전출·졸업해서 표시가 닫힌 관계는 여기에도 나오지 않는다.
+pub fn candidates(c: &Connection, school_year: i32) -> AppResult<Vec<CandidateRow>> {
+    let sql = format!(
+        "SELECT l.id, l.student_a, l.student_b, l.matched_fields, l.conflict_fields, l.created_at
+           FROM sibling_links l
+           JOIN students s      ON s.id = l.student_a
+           LEFT JOIN enrollments e ON e.student_id = l.student_a AND e.school_year = ?1
+          WHERE l.status = 'CANDIDATE'
+            AND EXISTS (
+                SELECT 1 FROM issues i
+                  JOIN enrollments e2 ON e2.student_id = i.student_id
+                                     AND e2.school_year = ?1
+                 WHERE i.ref_id = l.id
+                   AND i.kind = 'SIBLING_CANDIDATE'
+                   AND i.status = 'OPEN'
+                   AND e2.{ACTIVE})
+          ORDER BY {order}, l.id",
+        order = label::ORDER_BY_ROSTER,
+    );
+
+    let mut st = c.prepare(&sql)?;
+    let raw: Vec<(i64, i64, i64, Option<String>, Option<String>, String)> = st
+        .query_map([school_year], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(st);
+
+    let names = |json: Option<String>| -> Vec<String> {
+        sibling::from_json(json.as_deref().unwrap_or("[]"))
+            .iter()
+            .map(|f| f.label().to_string())
+            .collect()
+    };
+
+    let mut out = Vec::with_capacity(raw.len());
+    for (link_id, a, b, matched, conflicts, found_at) in raw {
+        out.push(CandidateRow {
+            link_id,
+            label_a: student_label_of(c, a, school_year)?,
+            label_b: student_label_of(c, b, school_year)?,
+            student_a: a,
+            student_b: b,
+            matched: names(matched),
+            conflicts: names(conflicts),
+            found_at,
+        });
+    }
+    Ok(out)
+}
+
+/// 후보 여럿을 한꺼번에 확정한 결과.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchConfirm {
+    /// 이번에 후보에서 형제로 바뀐 수
+    pub confirmed: i64,
+    /// 이미 형제로 확정되어 있던 수 (다시 세지 않는다)
+    pub already: i64,
+    /// '형제 아님' 으로 정해 둔 것이라 건드리지 않은 수
+    pub skipped: i64,
+    /// 표시를 다시 맞춰야 하는 학생
+    pub students: Vec<i64>,
+}
+
+/// 고른 후보를 형제로 확정한다.
+///
+/// 지키는 것
+///   * **모두 되거나 모두 안 된다.** 없는 관계 번호가 하나라도 있으면 오류를 내고,
+///     부르는 쪽(`Db::write`)의 트랜잭션이 되돌려 놓는다. 절반만 확정된 상태로
+///     끝나지 않는다.
+///   * 사용자가 '형제 아님'(REJECTED)이라고 해 둔 관계는 **일괄 확정으로도 뒤집지
+///     않는다.** 건너뛰고 몇 건인지만 알린다.
+///   * 이미 확정된 관계는 오류가 아니다. 목록을 띄워 둔 사이에 딴 데서 확정했을 수 있다.
+pub fn confirm_many(c: &Connection, link_ids: &[i64]) -> AppResult<BatchConfirm> {
+    let mut out = BatchConfirm::default();
+    let mut seen: std::collections::HashSet<i64> = std::collections::HashSet::new();
+    let mut students: std::collections::HashSet<i64> = std::collections::HashSet::new();
+
+    for id in link_ids {
+        if !seen.insert(*id) {
+            continue; // 같은 관계를 두 번 보내도 한 번만 센다
+        }
+        let row: Option<(i64, i64, String)> = c
+            .query_row(
+                "SELECT student_a, student_b, status FROM sibling_links WHERE id = ?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?;
+        let Some((a, b, status)) = row else {
+            return Err(AppError::not_found(
+                "형제 후보 가운데 사라진 것이 있어 아무것도 확정하지 않았습니다. \
+                 목록을 새로 고친 뒤 다시 해 주세요.",
+            ));
+        };
+
+        match status.as_str() {
+            "CANDIDATE" => {
+                confirm(c, *id)?;
+                out.confirmed += 1;
+                students.insert(a);
+                students.insert(b);
+            }
+            "CONFIRMED" => {
+                out.already += 1;
+                students.insert(a);
+                students.insert(b);
+            }
+            // REJECTED — 사용자가 정한 것을 일괄 처리가 뒤집지 않는다
+            _ => out.skipped += 1,
+        }
+    }
+
+    let mut students: Vec<i64> = students.into_iter().collect();
+    students.sort_unstable();
+    out.students = students;
+    Ok(out)
+}
+
 #[cfg(test)]
 #[path = "sibling_tests.rs"]
 mod sibling_tests;

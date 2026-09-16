@@ -749,3 +749,245 @@ fn 진행_상황을_단계별로_알려_준다() {
     assert!(stages.contains(&"GUARDIAN"), "{stages:?}");
     assert!(seen.iter().all(|(_, d, t)| d <= t));
 }
+
+// ---------------------------------------------------------------
+// 후보 한꺼번에 확정하기
+// ---------------------------------------------------------------
+
+/// 후보 한 쌍씩 `n` 쌍. 쌍마다 보호자 이름이 달라 서로 얽히지 않는다.
+fn pairs(db: &Db, n: usize) -> Vec<(i64, i64)> {
+    let mut out = Vec::new();
+    for i in 0..n {
+        let f = format!("남궁바다{i}");
+        let m = format!("제갈하늘{i}");
+        let a = add(db, &format!("가온{i}"), &f, &m, "", "");
+        let b = add(db, &format!("해솔{i}"), &f, &m, "", "");
+        out.push((a, b));
+    }
+    run_scan(db);
+    out
+}
+
+fn candidate_rows(db: &Db) -> Vec<CandidateRow> {
+    db.read(|c| candidates(c, 2026)).unwrap()
+}
+
+/// 명령이 하는 일과 같다 — 한 트랜잭션에서 확정하고 표시를 다시 맞춘다.
+fn batch(db: &Db, ids: &[i64]) -> AppResult<BatchConfirm> {
+    db.write(|c| {
+        let out = confirm_many(c, ids)?;
+        for id in &out.students {
+            student::sync_issues(c, *id, 2026, today())?;
+        }
+        Ok(out)
+    })
+}
+
+fn status_of(db: &Db, link_id: i64) -> String {
+    db.read(|c| {
+        Ok(c.query_row(
+            "SELECT status FROM sibling_links WHERE id = ?1",
+            [link_id],
+            |r| r.get::<_, String>(0),
+        )?)
+    })
+    .unwrap()
+}
+
+#[test]
+fn 후보_열_건을_한_번에_형제로_확정한다() {
+    let db = db();
+    let made = pairs(&db, 10);
+
+    let rows = candidate_rows(&db);
+    assert_eq!(rows.len(), 10, "쌍마다 한 줄이다 (학생마다가 아니다)");
+    assert!(
+        rows.iter().all(|r| r.matched.contains(&"부 성명".to_string())
+            && r.matched.contains(&"모 성명".to_string())),
+        "무엇이 같아서 후보인지 함께 보여 준다"
+    );
+
+    let ids: Vec<i64> = rows.iter().map(|r| r.link_id).collect();
+    let out = batch(&db, &ids).unwrap();
+    assert_eq!(out.confirmed, 10);
+    assert_eq!(out.already, 0);
+    assert_eq!(out.skipped, 0);
+    assert_eq!(out.students.len(), 20);
+
+    for id in &ids {
+        assert_eq!(status_of(&db, *id), "CONFIRMED");
+    }
+    for (a, b) in &made {
+        assert!(issues_of(&db, *a, "SIBLING_CANDIDATE").is_empty(), "표시가 남았다");
+        assert!(issues_of(&db, *b, "SIBLING_CANDIDATE").is_empty());
+    }
+    assert!(candidate_rows(&db).is_empty(), "확인 필요 목록에서 사라진다");
+}
+
+#[test]
+fn 고른_후보만_확정하고_나머지는_후보로_남는다() {
+    let db = db();
+    pairs(&db, 10);
+
+    let rows = candidate_rows(&db);
+    let picked: Vec<i64> = rows.iter().take(8).map(|r| r.link_id).collect();
+    let left: Vec<i64> = rows.iter().skip(8).map(|r| r.link_id).collect();
+
+    let out = batch(&db, &picked).unwrap();
+    assert_eq!(out.confirmed, 8);
+
+    for id in &picked {
+        assert_eq!(status_of(&db, *id), "CONFIRMED");
+    }
+    for id in &left {
+        assert_eq!(status_of(&db, *id), "CANDIDATE", "고르지 않은 것은 그대로다");
+    }
+    assert_eq!(candidate_rows(&db).len(), 2);
+}
+
+#[test]
+fn 하나라도_없는_후보면_아무것도_확정하지_않는다() {
+    let db = db();
+    pairs(&db, 10);
+
+    let rows = candidate_rows(&db);
+    let mut ids: Vec<i64> = rows.iter().map(|r| r.link_id).collect();
+    ids.insert(5, 999_999); // 목록을 띄워 둔 사이에 사라진 관계
+
+    let err = batch(&db, &ids).unwrap_err();
+    assert_eq!(err.code, "NOT_FOUND");
+
+    for r in &rows {
+        assert_eq!(
+            status_of(&db, r.link_id),
+            "CANDIDATE",
+            "절반만 확정되면 안 된다"
+        );
+    }
+    assert_eq!(candidate_rows(&db).len(), 10);
+}
+
+#[test]
+fn 형제_아님은_일괄_확정으로도_되살아나지_않는다() {
+    let db = db();
+    pairs(&db, 3);
+
+    let rows = candidate_rows(&db);
+    let rejected = rows[0].link_id;
+    db.write(|c| {
+        reject(c, rejected)?;
+        Ok(())
+    })
+    .unwrap();
+
+    let ids: Vec<i64> = rows.iter().map(|r| r.link_id).collect();
+    let out = batch(&db, &ids).unwrap();
+    assert_eq!(out.confirmed, 2);
+    assert_eq!(out.skipped, 1);
+    assert_eq!(status_of(&db, rejected), "REJECTED", "사용자 결정이 먼저다");
+}
+
+#[test]
+fn 이미_확정한_관계를_다시_보내도_오류가_아니다() {
+    let db = db();
+    pairs(&db, 3);
+    let ids: Vec<i64> = candidate_rows(&db).iter().map(|r| r.link_id).collect();
+
+    batch(&db, &ids).unwrap();
+    let again = batch(&db, &ids).unwrap();
+    assert_eq!(again.confirmed, 0);
+    assert_eq!(again.already, 3);
+    assert_eq!(again.skipped, 0);
+}
+
+#[test]
+fn 같은_후보를_두_번_보내도_한_번만_센다() {
+    let db = db();
+    pairs(&db, 2);
+    let ids: Vec<i64> = candidate_rows(&db).iter().map(|r| r.link_id).collect();
+    let doubled: Vec<i64> = ids.iter().chain(ids.iter()).copied().collect();
+
+    let out = batch(&db, &doubled).unwrap();
+    assert_eq!(out.confirmed, 2);
+    assert_eq!(out.already, 0);
+}
+
+#[test]
+fn 일괄_확정하면_보호자_보완과_불일치가_그대로_따라온다() {
+    let db = db();
+    // 이름 둘이 같아 후보 — 모 연락처는 한쪽에만 있고(보완), 부 연락처는 서로 다르다(불일치)
+    let a = add(&db, "가온", "남궁바다", "제갈하늘", "010-1000-0001", "010-1000-0002");
+    let b = add(&db, "해솔", "남궁바다", "제갈하늘", "010-1000-0009", "");
+    run_scan(&db);
+
+    let rows = candidate_rows(&db);
+    assert_eq!(rows.len(), 1);
+    assert!(
+        rows[0].conflicts.contains(&"부 연락처".to_string()),
+        "확정 전에 다른 값이 있다고 알려 준다"
+    );
+
+    // 확정 전에는 형제 관계가 아니므로 보완·불일치 표시가 없다
+    assert!(issues_of(&db, b, "GUARDIAN_FILL").is_empty());
+    assert!(issues_of(&db, a, "GUARDIAN_CONFLICT").is_empty());
+
+    batch(&db, &[rows[0].link_id]).unwrap();
+
+    assert_eq!(issues_of(&db, b, "GUARDIAN_FILL").len(), 1, "모 연락처를 가져올 수 있다");
+    assert!(issues_of(&db, a, "GUARDIAN_FILL").is_empty(), "빈칸이 없는 쪽은 없다");
+    assert_eq!(issues_of(&db, a, "GUARDIAN_CONFLICT").len(), 1);
+    assert_eq!(issues_of(&db, b, "GUARDIAN_CONFLICT").len(), 1);
+    assert!(issues_of(&db, a, "SIBLING_CANDIDATE").is_empty());
+}
+
+#[test]
+fn 후보_목록에는_확정_형제와_형제_아님이_나오지_않는다() {
+    let db = db();
+    pairs(&db, 3);
+    let rows = candidate_rows(&db);
+
+    db.write(|c| {
+        confirm(c, rows[0].link_id)?;
+        reject(c, rows[1].link_id)?;
+        Ok(())
+    })
+    .unwrap();
+    // 확인 필요 표시도 명령과 같은 자리에서 다시 맞춘다
+    db.write(|c| {
+        for r in &rows {
+            student::sync_issues(c, r.student_a, 2026, today())?;
+            student::sync_issues(c, r.student_b, 2026, today())?;
+        }
+        Ok(())
+    })
+    .unwrap();
+
+    let left = candidate_rows(&db);
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].link_id, rows[2].link_id);
+}
+
+#[test]
+fn 후보_목록은_전출한_학생의_쌍을_보여_주지_않는다() {
+    let db = db();
+    let a = add(&db, "가온", "남궁바다", "제갈하늘", "", "");
+    let b = add(&db, "해솔", "남궁바다", "제갈하늘", "", "");
+    run_scan(&db);
+    assert_eq!(candidate_rows(&db).len(), 1);
+
+    db.write(|c| {
+        c.execute(
+            "UPDATE enrollments SET status = 'TRANSFER_OUT'
+              WHERE student_id IN (?1, ?2) AND school_year = 2026",
+            params![a, b],
+        )?;
+        student::sync_issues(c, a, 2026, today())?;
+        student::sync_issues(c, b, 2026, today())
+    })
+    .unwrap();
+
+    assert!(
+        candidate_rows(&db).is_empty(),
+        "업무함에 없는 학생은 일괄 확정 목록에도 없다"
+    );
+}

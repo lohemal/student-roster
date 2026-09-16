@@ -8,7 +8,7 @@ use crate::error::{AppError, AppResult};
 use crate::job::{self, Job};
 use crate::repo::{
     self,
-    sibling::{ScanResult, SiblingView},
+    sibling::{BatchConfirm, CandidateRow, ScanResult, SiblingView},
 };
 use crate::AppState;
 
@@ -73,6 +73,41 @@ fn decide(
         repo::student::sync_issues(c, a, school_year, today)?;
         repo::student::sync_issues(c, b, school_year, today)?;
         Ok(())
+    })
+}
+
+/// 확인 필요 화면에 떠 있는 형제 후보를 쌍마다 한 줄로.
+#[tauri::command]
+pub fn sibling_candidates(
+    state: State<'_, AppState>,
+    school_year: i32,
+) -> AppResult<Vec<CandidateRow>> {
+    state.db.read(|c| repo::sibling::candidates(c, school_year))
+}
+
+/// 고른 형제 후보를 **한 번에** 확정한다.
+///
+/// 후보마다 명령을 부르지 않는다. 쉰 건을 확정하다 서른 건째에서 멈추면 절반만
+/// 형제가 되고 화면은 무엇이 끝났는지 알 수 없다. 여기서는 한 트랜잭션 안에서
+/// 확정하고, 걸린 학생의 확인 필요까지 다시 맞춘 뒤에 끝난다.
+#[tauri::command]
+pub fn sibling_confirm_many(
+    state: State<'_, AppState>,
+    link_ids: Vec<i64>,
+    school_year: i32,
+) -> AppResult<BatchConfirm> {
+    if link_ids.is_empty() {
+        return Err(AppError::invalid("확정할 형제 후보를 골라 주세요."));
+    }
+    let today = chrono::Local::now().date_naive();
+    state.db.write(|c| {
+        let out = repo::sibling::confirm_many(c, &link_ids)?;
+        // 보호자 정보 보완·불일치 판정은 sync_issues 한 곳에만 있다.
+        // 일괄 확정이라고 건너뛰면 형제로 확정한 뒤에야 보이는 표시가 생기지 않는다.
+        for id in &out.students {
+            repo::student::sync_issues(c, *id, school_year, today)?;
+        }
+        Ok(out)
     })
 }
 

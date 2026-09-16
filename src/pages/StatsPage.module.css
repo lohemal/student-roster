@@ -109,7 +109,6 @@
 }
 
 .table th {
-  text-align: left;
   font-weight: 700;
   color: var(--text-muted);
   padding: 8px 12px;
@@ -128,9 +127,20 @@
   border-bottom: 0;
 }
 
-.num {
+/*
+  정렬은 **머리글과 값이 같은 규칙**을 쓴다.
+  `.table th { text-align: left }` 처럼 요소로 정해 두면 그 쪽이 이겨서
+  머리글만 왼쪽에 남고 숫자는 오른쪽으로 가 표가 어긋난다.
+*/
+.table th.num,
+.table td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.table th.text,
+.table td.text {
+  text-align: left;
 }
 
 .totalRow td {

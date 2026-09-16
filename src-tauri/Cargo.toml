@@ -1,6 +1,6 @@
 [package]
 name = "student_roster"
-version = "0.1.1"
+version = "0.1.2"
 description = "학생명단 관리 시스템"
 authors = ["lohemal"]
 edition = "2021"

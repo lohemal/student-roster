@@ -197,28 +197,36 @@ export function StatsPage() {
             hint="학생이 있는 학년만 나옵니다"
             action={<Button size="sm" variant="ghost" onClick={() => openRoster()}>학생명단 열기</Button>}
           >
-            <Table
-              head={['학년', '남', '여', '미입력', '합계']}
-              rows={data.byGrade.map((r) => ({
-                key: String(r.grade),
-                name: `${r.grade}학년`,
-                counts: r,
-                onOpen: () => openRoster({ grade: r.grade }),
-              }))}
-              total={data.totals}
+            <StatTable
+              cols={countCols('학년', (g) => openRoster({ grade: g }))}
+              lines={[
+                ...data.byGrade.map((r) => ({
+                  key: String(r.grade),
+                  data: { name: `${r.grade}학년`, counts: r, grade: r.grade },
+                })),
+                {
+                  key: '__total',
+                  total: true,
+                  data: { name: '합계', counts: data.totals, grade: null },
+                },
+              ]}
             />
           </Section>
 
           <Section title="학년 · 반별" hint="반이 정해지지 않은 학생은 미정으로 셉니다">
-            <Table
-              head={['학년 · 반', '남', '여', '미입력', '합계']}
-              rows={data.byClass.map((r) => ({
-                key: r.classLabel,
-                name: r.classLabel,
-                counts: r,
-                onOpen: () => openRoster({ grade: r.grade }),
-              }))}
-              total={data.totals}
+            <StatTable
+              cols={countCols('학년 · 반', (g) => openRoster({ grade: g }))}
+              lines={[
+                ...data.byClass.map((r) => ({
+                  key: r.classLabel,
+                  data: { name: r.classLabel, counts: r, grade: r.grade },
+                })),
+                {
+                  key: '__total',
+                  total: true,
+                  data: { name: '합계', counts: data.totals, grade: null },
+                },
+              ]}
             />
           </Section>
 
@@ -310,53 +318,122 @@ function Section({
   )
 }
 
-interface Row {
+/**
+ * 표의 열 하나.
+ *
+ * **머리글과 값이 이 정의 하나를 함께 쓴다.** 머리글 줄과 값 줄을 따로 그리면
+ * 정렬이 어긋나고(숫자는 오른쪽, 머리글은 왼쪽) 표를 읽을 수 없게 된다.
+ */
+interface Col<R> {
   key: string
-  name: string
-  counts: Counts
-  onOpen?: () => void
+  header: string
+  /** 글자는 왼쪽, 숫자는 오른쪽 */
+  align: 'left' | 'right'
+  /** 열 너비 — `<colgroup>` 에 그대로 들어가 머리와 몸이 같은 폭을 쓴다 */
+  width?: number
+  cell: (row: R) => string | number
+  /** 누르면 학생명단으로. 누를 곳이 아니면 undefined */
+  open?: (row: R) => (() => void) | undefined
+  /** 0 처럼 흐리게 둘 칸 */
+  dim?: (row: R) => boolean
 }
 
-function Table({ head, rows, total }: { head: string[]; rows: Row[]; total: Counts }) {
+/** 표의 한 줄. 합계 줄도 같은 열 정의를 쓴다. */
+interface Line<R> {
+  key: string
+  data: R
+  total?: boolean
+}
+
+/** 머리글 칸과 값 칸이 **같은 함수**로 모양을 정한다 */
+function cellClass<R>(col: Col<R>, i: number): string {
+  const parts = [col.align === 'right' ? s.num : s.text]
+  if (i === 0) parts.push(s.sticky)
+  return parts.join(' ')
+}
+
+function StatTable<R>({ cols, lines }: { cols: Col<R>[]; lines: Line<R>[] }) {
   return (
     <div className={s.tableWrap}>
       <table className={s.table}>
+        <colgroup>
+          {cols.map((c) => (
+            <col key={c.key} style={c.width ? { width: c.width } : undefined} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
-            {head.map((h, i) => (
-              <th key={h} className={i === 0 ? s.sticky : s.num}>
-                {h}
+            {cols.map((c, i) => (
+              <th key={c.key} className={cellClass(c, i)}>
+                {c.header}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.key}>
-              <td
-                className={`${s.sticky} ${s.groupName} ${r.onOpen ? s.linkCell : ''}`}
-                onClick={r.onOpen}
-                title={r.onOpen ? '학생명단에서 보기' : undefined}
-              >
-                {r.name}
-              </td>
-              <td className={s.num}>{n(r.counts.male)}</td>
-              <td className={s.num}>{n(r.counts.female)}</td>
-              <td className={s.num}>{n(r.counts.unknown)}</td>
-              <td className={s.num}>{n(r.counts.total)}</td>
+          {lines.map((line) => (
+            <tr key={line.key} className={line.total ? s.totalRow : undefined}>
+              {cols.map((c, i) => {
+                const open = line.total ? undefined : c.open?.(line.data)
+                const v = c.cell(line.data)
+                const cls = [cellClass(c, i)]
+                if (i === 0 && !line.total) cls.push(s.groupName)
+                if (open) cls.push(s.linkCell)
+                else if (c.dim?.(line.data)) cls.push(s.zero)
+                return (
+                  <td
+                    key={c.key}
+                    className={cls.join(' ')}
+                    onClick={open}
+                    title={open ? '학생명단에서 보기' : undefined}
+                  >
+                    {typeof v === 'number' ? n(v) : v}
+                  </td>
+                )
+              })}
             </tr>
           ))}
-          <tr className={s.totalRow}>
-            <td className={s.sticky}>합계</td>
-            <td className={s.num}>{n(total.male)}</td>
-            <td className={s.num}>{n(total.female)}</td>
-            <td className={s.num}>{n(total.unknown)}</td>
-            <td className={s.num}>{n(total.total)}</td>
-          </tr>
         </tbody>
       </table>
     </div>
   )
+}
+
+/** 이름 한 칸 + 남 · 여 · 미입력 · 합계. 학년별과 학년·반별이 함께 쓴다. */
+interface CountLine {
+  name: string
+  counts: Counts
+  grade: number | null
+}
+
+function countCols(
+  nameHeader: string,
+  openRoster: (grade: number | null) => void,
+): Col<CountLine>[] {
+  const num = (
+    key: string,
+    header: string,
+    pick: (c: Counts) => number,
+  ): Col<CountLine> => ({
+    key,
+    header,
+    align: 'right',
+    width: 92,
+    cell: (r) => pick(r.counts),
+  })
+  return [
+    {
+      key: 'name',
+      header: nameHeader,
+      align: 'left',
+      cell: (r) => r.name,
+      open: (r) => () => openRoster(r.grade),
+    },
+    num('male', '남', (c) => c.male),
+    num('female', '여', (c) => c.female),
+    num('unknown', '미입력', (c) => c.unknown),
+    num('total', '합계', (c) => c.total),
+  ]
 }
 
 /** 주소 분류 × 학년 교차표 */
@@ -368,56 +445,55 @@ function AddressCross({
   onOpen: (row: AddressRow, grade: number | null) => void
 }) {
   const { grades, rows, gradeTotals, total } = data.address
-  return (
-    <div className={s.tableWrap}>
-      <table className={s.table}>
-        <thead>
-          <tr>
-            <th className={s.sticky}>주소 분류</th>
-            {grades.map((g) => (
-              <th key={g} className={s.num}>
-                {g}학년
-              </th>
-            ))}
-            <th className={s.num}>합계</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={`${r.bucket}-${r.categoryId ?? r.name}`}>
-              <td
-                className={`${s.sticky} ${s.groupName} ${s.linkCell}`}
-                onClick={() => onOpen(r, null)}
-                title="학생명단에서 보기"
-              >
-                {r.name}
-              </td>
-              {r.byGrade.map((v, i) => (
-                <td
-                  key={grades[i]}
-                  className={`${s.num} ${v > 0 ? s.linkCell : s.zero}`}
-                  onClick={v > 0 ? () => onOpen(r, grades[i]) : undefined}
-                  title={v > 0 ? `${grades[i]}학년 ${r.name} 학생 보기` : undefined}
-                >
-                  {n(v)}
-                </td>
-              ))}
-              <td className={s.num}>{n(r.total)}</td>
-            </tr>
-          ))}
-          <tr className={s.totalRow}>
-            <td className={s.sticky}>합계</td>
-            {gradeTotals.map((v, i) => (
-              <td key={grades[i]} className={s.num}>
-                {n(v)}
-              </td>
-            ))}
-            <td className={s.num}>{n(total)}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  )
+
+  interface CrossLine {
+    name: string
+    byGrade: number[]
+    total: number
+    /** 합계 줄에는 없다 */
+    row: AddressRow | null
+  }
+
+  const cols: Col<CrossLine>[] = [
+    {
+      key: 'name',
+      header: '주소 분류',
+      align: 'left',
+      cell: (r) => r.name,
+      open: (r) => (r.row ? () => onOpen(r.row!, null) : undefined),
+    },
+    ...grades.map((g, i) => ({
+      key: `g${g}`,
+      header: `${g}학년`,
+      align: 'right' as const,
+      width: 92,
+      cell: (r: CrossLine) => r.byGrade[i] ?? 0,
+      open: (r: CrossLine) =>
+        r.row && (r.byGrade[i] ?? 0) > 0 ? () => onOpen(r.row!, g) : undefined,
+      dim: (r: CrossLine) => (r.byGrade[i] ?? 0) === 0,
+    })),
+    {
+      key: 'total',
+      header: '합계',
+      align: 'right',
+      width: 92,
+      cell: (r) => r.total,
+    },
+  ]
+
+  const lines: Line<CrossLine>[] = [
+    ...rows.map((r) => ({
+      key: `${r.bucket}-${r.categoryId ?? r.name}`,
+      data: { name: r.name, byGrade: r.byGrade, total: r.total, row: r },
+    })),
+    {
+      key: '__total',
+      total: true,
+      data: { name: '합계', byGrade: gradeTotals, total, row: null },
+    },
+  ]
+
+  return <StatTable cols={cols} lines={lines} />
 }
 
 function Quality({ data }: { data: StatsOverview }) {

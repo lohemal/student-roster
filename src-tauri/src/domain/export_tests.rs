@@ -120,38 +120,8 @@ fn 이름이_비면_기본값을_쓴다() {
 // 수식처럼 보이는 값(`=1+1`, `@name`)은 글자 칸으로 쓰면 그대로 남는다.
 // 그 확인은 만든 파일을 다시 읽는 `export::export_tests` 에서 한다.
 
-// ---------------------------------------------------------------
-// 알림e 비고
-// ---------------------------------------------------------------
-
-#[test]
-fn 알림e_비고는_학생을_알아볼_만큼_짧다() {
-    assert_eq!(alime_note(3, Some("나리"), Some(7)), "3-나리-7");
-    assert_eq!(alime_note(3, Some("2"), Some(15)), "3-2-15");
-    assert_eq!(alime_note(3, Some("나리"), None), "3-나리");
-    assert_eq!(alime_note(3, None, Some(7)), "3학년 7번");
-    assert_eq!(alime_note(3, None, None), "3학년");
-}
-
-#[test]
-fn 알림e_비고는_열다섯자를_넘지_않는다() {
-    let long = alime_note(3, Some("아주아주아주긴반이름입니다"), Some(7));
-    assert!(
-        long.chars().count() <= ALIME_MAX_LEN,
-        "{long} 은 {}자",
-        long.chars().count()
-    );
-    assert!(long.contains('7'), "번호만이라도 남긴다: {long}");
-
-    for (g, c, no) in [
-        (1, Some("가람"), Some(1)),
-        (6, Some("다솜"), Some(200)),
-        (2, Some("긴이름반열두글자넘게"), None),
-    ] {
-        let v = alime_note(g, c, no);
-        assert!(v.chars().count() <= ALIME_MAX_LEN, "{v}");
-    }
-}
+// 알림e 비고 칸은 언제나 빈칸이다. 값을 만드는 규칙이 없으므로 여기서 볼 것도 없다 —
+// 실제로 빈칸으로 나가는지는 파일을 다시 읽는 `export::export_tests` 에서 확인한다.
 
 // ---------------------------------------------------------------
 // 보호자 연락처 고르기

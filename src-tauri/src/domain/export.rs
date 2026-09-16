@@ -242,27 +242,9 @@ fn trim_chars(s: &str, max: usize) -> String {
 // 값 다루기
 // ---------------------------------------------------------------
 
-/// 알림e 비고 — `3-나리-7`. 반이 없으면 `3학년`, 번호가 없으면 `3-나리`.
-///
-/// 15자를 넘지 않게 만든다. **학생 이름은 넣지 않는다** — 이름 칸에 이미 있다.
-pub fn alime_note(grade: i32, class_name: Option<&str>, class_no: Option<i32>) -> String {
-    let class_name = class_name.map(str::trim).filter(|s| !s.is_empty());
-    let full = match (class_name, class_no) {
-        (Some(c), Some(n)) => format!("{grade}-{c}-{n}"),
-        (Some(c), None) => format!("{grade}-{c}"),
-        (None, Some(n)) => format!("{grade}학년 {n}번"),
-        (None, None) => format!("{grade}학년"),
-    };
-    if full.chars().count() <= ALIME_MAX_LEN {
-        return full;
-    }
-    // 반 이름이 아주 길면 번호만이라도 남긴다
-    let short = match class_no {
-        Some(n) => format!("{grade}-{n}"),
-        None => format!("{grade}학년"),
-    };
-    trim_chars(&short, ALIME_MAX_LEN)
-}
+// 알림e 비고 칸은 **언제나 빈칸**으로 내보낸다. 학적(`3-나리-7`)을 적어 두면
+// 학교가 그 칸에 쓰던 값을 덮어쓰게 되므로, 열만 남기고 값은 넣지 않는다.
+// 만드는 함수도 두지 않는다 — 쓰지 않는 규칙이 남아 있으면 언젠가 다시 새어 나간다.
 
 /// 학교종이 시트 이름 — `1학년 가람반` / `3학년 2반`.
 pub fn schooljongi_sheet(grade: i32, class_name: Option<&str>) -> String {

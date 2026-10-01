@@ -2,7 +2,16 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Search, UserPlus } from 'lucide-react'
 
-import { Badge, Button, ErrorNotice, Field, Input, Notice } from '@/components/ui'
+import {
+  Badge,
+  Button,
+  ErrorNotice,
+  Field,
+  FieldAction,
+  FieldRow,
+  Input,
+  Notice,
+} from '@/components/ui'
 import { transferApi, type StudentMatch } from '@/ipc/transfer'
 import { birthDisplay } from '@/lib/format'
 import s from './Transfer.module.css'
@@ -41,7 +50,8 @@ export function StudentLookup({ schoolYear, onPick, onNew }: Props) {
         학생이면 <b>그 학생을 그대로</b> 써야 기록이 이어집니다.
       </Notice>
 
-      <div className={s.lookupRow}>
+      {/* 도움말이 달린 생년월일 칸 때문에 윗선이 밀리지 않도록 FieldRow 를 쓴다 */}
+      <FieldRow className={s.lookupRow}>
         <Field label="이름">
           <Input
             value={name}
@@ -57,17 +67,22 @@ export function StudentLookup({ schoolYear, onPick, onNew }: Props) {
             value={birth}
             onChange={(e) => setBirth(e.target.value)}
             placeholder="2017-03-15"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && canSearch) search.mutate()
+            }}
           />
         </Field>
-        <Button
-          variant="outline"
-          icon={Search}
-          onClick={() => search.mutate()}
-          disabled={!canSearch || search.isPending}
-        >
-          찾기
-        </Button>
-      </div>
+        <FieldAction>
+          <Button
+            variant="outline"
+            icon={Search}
+            onClick={() => search.mutate()}
+            disabled={!canSearch || search.isPending}
+          >
+            찾기
+          </Button>
+        </FieldAction>
+      </FieldRow>
 
       <ErrorNotice error={search.error} />
 

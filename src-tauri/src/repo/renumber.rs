@@ -12,7 +12,7 @@ use chrono::NaiveDate;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
-use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
+use crate::domain::enroll;
 use crate::domain::label;
 use crate::domain::renumber::{self, Kind, Plan, Seat};
 use crate::error::{AppError, AppResult};
@@ -56,7 +56,13 @@ fn class_of(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Clas
 /// 같은 학년도·학년·반 학생 전부. 번호가 없는 학생도 담는다.
 ///
 /// 반 이름이 NULL 인 학생(반배정 미정)끼리도 하나의 묶음으로 본다.
-fn rows_of(c: &Connection, school_year: i32, class: &ClassRef) -> AppResult<Vec<Row>> {
+fn rows_of(
+    c: &Connection,
+    school_year: i32,
+    class: &ClassRef,
+    asof: NaiveDate,
+) -> AppResult<Vec<Row>> {
+    let active = enroll::active_sql("e.", asof);
     let mut st = c.prepare(&format!(
         "SELECT e.student_id, s.name, e.class_no
            FROM enrollments e
@@ -64,7 +70,7 @@ fn rows_of(c: &Connection, school_year: i32, class: &ClassRef) -> AppResult<Vec<
           WHERE e.school_year = ?1
             AND e.grade = ?2
             AND ((e.class_name IS NULL AND ?3 IS NULL) OR e.class_name = ?3)
-            AND e.{ACTIVE}
+            AND {active}
           ORDER BY CASE WHEN e.class_no IS NULL THEN 1 ELSE 0 END, e.class_no, s.name",
     ))?;
     let rows = st
@@ -129,9 +135,10 @@ pub fn preview(
     student_id: i64,
     school_year: i32,
     new_no: i32,
+    asof: NaiveDate,
 ) -> AppResult<Preview> {
     let class = class_of(c, student_id, school_year)?;
-    let rows = rows_of(c, school_year, &class)?;
+    let rows = rows_of(c, school_year, &class, asof)?;
     let seats = seats_of(&rows);
     let class_label = class.label();
 
@@ -245,7 +252,7 @@ pub fn apply(
     today: NaiveDate,
 ) -> AppResult<ApplyResult> {
     let class = class_of(c, student_id, school_year)?;
-    let rows = rows_of(c, school_year, &class)?;
+    let rows = rows_of(c, school_year, &class, today)?;
     let seats = seats_of(&rows);
     let class_label = class.label();
 

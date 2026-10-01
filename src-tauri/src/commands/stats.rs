@@ -13,6 +13,7 @@ use crate::repo::{
         AddressQuality, AddressTable, ClassCount, Consistency, Counts, GradeRow, StatFilter,
     },
 };
+use super::today;
 use crate::AppState;
 
 #[derive(Debug, Serialize)]
@@ -42,12 +43,12 @@ pub fn stats_overview(
         Ok(StatsOverview {
             school_year: filter.school_year,
             is_current_year: current == Some(filter.school_year),
-            totals: repo::stats::totals(c, &filter)?,
-            by_grade: repo::stats::by_grade(c, &filter)?,
-            by_class: repo::stats::by_class(c, &filter)?,
-            address: repo::stats::by_address(c, &filter)?,
-            address_quality: repo::stats::address_quality(c, &filter)?,
-            consistency: repo::stats::check_consistency(c, &filter)?,
+            totals: repo::stats::totals(c, &filter, today())?,
+            by_grade: repo::stats::by_grade(c, &filter, today())?,
+            by_class: repo::stats::by_class(c, &filter, today())?,
+            address: repo::stats::by_address(c, &filter, today())?,
+            address_quality: repo::stats::address_quality(c, &filter, today())?,
+            consistency: repo::stats::check_consistency(c, &filter, today())?,
         })
     })
 }

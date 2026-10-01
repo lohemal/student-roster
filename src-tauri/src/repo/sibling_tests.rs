@@ -59,7 +59,7 @@ fn add_at(
 
 fn run_scan(db: &Db) -> ScanResult {
     db.write(|c| {
-        let out = scan(c, 2026, |_, _, _| {})?;
+        let out = scan(c, 2026, today(), |_, _, _| {})?;
         // 훑은 뒤에는 화면 표시를 다시 맞춘다 (명령이 하는 일과 같다)
         let ids: Vec<i64> = c
             .prepare("SELECT student_id FROM enrollments WHERE school_year = 2026")?
@@ -74,7 +74,7 @@ fn run_scan(db: &Db) -> ScanResult {
 }
 
 fn links(db: &Db, student_id: i64) -> Vec<SiblingView> {
-    db.read(|c| list_for_student(c, student_id, 2026)).unwrap()
+    db.read(|c| list_for_student(c, student_id, 2026, today())).unwrap()
 }
 
 fn issues_of(db: &Db, student_id: i64, kind: &str) -> Vec<issue::IssueRow> {
@@ -593,7 +593,7 @@ fn 한_학생이_여러_형제를_가질_수_있다() {
     let confirmed = db.read(|c| confirmed_partners(c, a)).unwrap();
     assert_eq!(confirmed.len(), 2);
 
-    let b = db.read(|c| brief(c, a, 2026)).unwrap().unwrap();
+    let b = db.read(|c| brief(c, a, 2026, today())).unwrap().unwrap();
     assert_eq!(b.count, 2);
     assert_eq!(b.text, "2명");
 }
@@ -607,7 +607,7 @@ fn 형제가_한_명이면_이름표로_보여_준다() {
     let link_id = links(&db, a)[0].link_id;
     db.write(|c| confirm(c, link_id)).unwrap();
 
-    let b = db.read(|c| brief(c, a, 2026)).unwrap().unwrap();
+    let b = db.read(|c| brief(c, a, 2026, today())).unwrap().unwrap();
     assert_eq!(b.count, 1);
     assert_eq!(b.text, "2-가람 둘째");
 }
@@ -616,7 +616,7 @@ fn 형제가_한_명이면_이름표로_보여_준다() {
 fn 확정_형제가_없으면_표시할_것이_없다() {
     let db = db();
     let a = add(&db, "혼자", "가철수", "가영희", "", "");
-    assert!(db.read(|c| brief(c, a, 2026)).unwrap().is_none());
+    assert!(db.read(|c| brief(c, a, 2026, today())).unwrap().is_none());
 }
 
 #[test]
@@ -699,7 +699,7 @@ fn 천명_넘는_학생도_빠르게_훑는다() {
     .unwrap();
 
     let started = std::time::Instant::now();
-    let out = db.write(|c| scan(c, 2026, |_, _, _| {})).unwrap();
+    let out = db.write(|c| scan(c, 2026, today(), |_, _, _| {})).unwrap();
     let took = started.elapsed();
 
     assert_eq!(out.scanned, 1200);
@@ -724,7 +724,7 @@ fn 빈칸이_많아도_후보가_불어나지_않는다() {
     })
     .unwrap();
 
-    let out = db.write(|c| scan(c, 2026, |_, _, _| {})).unwrap();
+    let out = db.write(|c| scan(c, 2026, today(), |_, _, _| {})).unwrap();
     assert_eq!(out.scanned, 500);
     assert_eq!(out.new_candidates, 0, "보호자 정보가 없는 학생끼리 묶이면 안 된다");
 }
@@ -737,7 +737,7 @@ fn 진행_상황을_단계별로_알려_준다() {
 
     let mut seen: Vec<(String, usize, usize)> = Vec::new();
     db.write(|c| {
-        scan(c, 2026, |stage, done, total| {
+        scan(c, 2026, today(), |stage, done, total| {
             seen.push((stage.to_string(), done, total))
         })
     })
@@ -769,7 +769,7 @@ fn pairs(db: &Db, n: usize) -> Vec<(i64, i64)> {
 }
 
 fn candidate_rows(db: &Db) -> Vec<CandidateRow> {
-    db.read(|c| candidates(c, 2026)).unwrap()
+    db.read(|c| candidates(c, 2026, today())).unwrap()
 }
 
 /// 명령이 하는 일과 같다 — 한 트랜잭션에서 확정하고 표시를 다시 맞춘다.

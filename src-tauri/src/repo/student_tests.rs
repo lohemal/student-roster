@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::db::Db;
+use crate::domain::guardian;
 use crate::repo::settings;
 
 fn today() -> NaiveDate {
@@ -40,7 +41,7 @@ fn add(db: &Db, i: &StudentInput) -> i64 {
 }
 
 fn all(db: &Db, f: &ListFilter) -> Vec<StudentRow> {
-    db.read(|c| list(c, f, 1000, 0)).unwrap().rows
+    db.read(|c| list(c, f, 1000, 0, today())).unwrap().rows
 }
 
 fn filter() -> ListFilter {
@@ -63,7 +64,7 @@ fn 학생을_등록하면_학적도_함께_생긴다() {
     let db = db_with_year(2026);
     let id = add(&db, &input("홍길동", 3, Some("가람"), Some(7)));
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     assert_eq!(d.name, "홍길동");
     let e = d.enrollment.expect("2026 학적이 있어야 한다");
     assert_eq!((e.grade, e.class_name.as_deref(), e.class_no), (3, Some("가람"), Some(7)));
@@ -76,7 +77,7 @@ fn 등록하면_학적_이력에_등록_사건이_남는다() {
     let db = db_with_year(2026);
     let id = add(&db, &input("홍길동", 3, Some("가람"), Some(7)));
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     assert_eq!(d.events.len(), 1);
     assert_eq!(d.events[0].kind, "ENROLL");
     assert_eq!(d.events[0].kind_label, "등록");
@@ -91,7 +92,7 @@ fn 저장할_때_생년월일과_연락처를_정리한다() {
     i.father_phone = Some("01012345678".into());
     let id = add(&db, &i);
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     assert_eq!(d.birth_date.as_deref(), Some("2017-03-15"));
     assert_eq!(d.birth_raw.as_deref(), Some("17.03.15."), "원본은 그대로 둔다");
     assert_eq!(d.father_phone.as_deref(), Some("010-1234-5678"));
@@ -107,7 +108,7 @@ fn 수정하면_기본정보와_학적이_함께_바뀐다() {
     i.father_phone = Some("010-9999-8888".into());
     db.write(|c| update(c, id, &i, today())).unwrap();
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     assert_eq!(d.name, "홍길순");
     assert_eq!(d.father_phone.as_deref(), Some("010-9999-8888"));
     let e = d.enrollment.unwrap();
@@ -153,7 +154,7 @@ fn 번호가_비어_있어도_등록된다() {
     let db = db_with_year(2026);
     let id = add(&db, &input("번호없음", 2, Some("나리"), None));
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     assert_eq!(d.enrollment.unwrap().class_no, None);
     assert_eq!(all(&db, &filter()).len(), 1, "명단에 그대로 나온다");
 }
@@ -163,7 +164,7 @@ fn 반이_비어_있어도_등록된다() {
     let db = db_with_year(2026);
     let id = add(&db, &input("반없음", 2, None, None));
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     let e = d.enrollment.unwrap();
     assert_eq!(e.class_name, None);
     assert_eq!(e.class_label, "2-미정");
@@ -380,12 +381,12 @@ fn 쪽_나누기와_전체_수가_맞는다() {
         add(&db, &input(&format!("학생{n:02}"), 1, Some("가람"), Some(n)));
     }
 
-    let page = db.read(|c| list(c, &filter(), 10, 0)).unwrap();
+    let page = db.read(|c| list(c, &filter(), 10, 0, today())).unwrap();
     assert_eq!(page.total, 25, "전체 수는 쪽과 무관하다");
     assert_eq!(page.rows.len(), 10);
     assert_eq!(page.rows[0].name, "학생01");
 
-    let page3 = db.read(|c| list(c, &filter(), 10, 20)).unwrap();
+    let page3 = db.read(|c| list(c, &filter(), 10, 20, today())).unwrap();
     assert_eq!(page3.rows.len(), 5);
     assert_eq!(page3.rows[0].name, "학생21");
 }
@@ -460,7 +461,7 @@ fn 학년도가_바뀌어도_지난_학적이_그대로_남는다() {
     })
     .unwrap();
 
-    let d = db.read(|c| detail(c, id, 2027)).unwrap();
+    let d = db.read(|c| detail(c, id, 2027, today())).unwrap();
     assert_eq!(d.enrollments.len(), 2);
     assert_eq!(d.enrollments[0].school_year, 2027, "최근 학년도가 먼저");
     assert_eq!(d.enrollments[0].class_label, "4-나리");
@@ -499,7 +500,7 @@ fn 생년월일이_이상해도_등록은_되고_확인_필요가_붙는다() {
     i.birth_raw = Some("20170230".into()); // 달력에 없는 날
     let id = add(&db, &i);
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     assert_eq!(d.birth_date, None);
     assert_eq!(d.birth_raw.as_deref(), Some("20170230"), "원본은 남는다");
     assert!(
@@ -515,7 +516,7 @@ fn 자료를_고치면_확인_필요가_저절로_닫힌다() {
     i.birth_raw = Some("20170230".into());
     let id = add(&db, &i);
     assert!(db
-        .read(|c| detail(c, id, 2026))
+        .read(|c| detail(c, id, 2026, today()))
         .unwrap()
         .issues
         .iter()
@@ -524,7 +525,7 @@ fn 자료를_고치면_확인_필요가_저절로_닫힌다() {
     i.birth_raw = Some("20170315".into());
     db.write(|c| update(c, id, &i, today())).unwrap();
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     assert_eq!(d.birth_date.as_deref(), Some("2017-03-15"));
     assert!(
         !d.issues.iter().any(|i| i.kind == "BIRTH"),
@@ -537,7 +538,7 @@ fn 반이나_번호가_비면_확인_필요가_붙는다() {
     let db = db_with_year(2026);
     let id = add(&db, &input("반없음", 1, None, None));
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     let issue = d
         .issues
         .iter()
@@ -555,7 +556,7 @@ fn 비어_있는_항목을_알려준다() {
     i.address_raw = None;
     let id = add(&db, &i);
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     let issue = d
         .issues
         .iter()
@@ -581,7 +582,7 @@ fn 같은_학년도에_이름과_생년월일이_같으면_중복_의심이_붙�
     add(&db, &a);
     let id_b = add(&db, &b);
 
-    let d = db.read(|c| detail(c, id_b, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id_b, 2026, today())).unwrap();
     assert!(d.issues.iter().any(|i| i.kind == "DUPLICATE"));
 }
 
@@ -596,7 +597,7 @@ fn 이름만_같고_생일이_다르면_중복_의심이_아니다() {
     add(&db, &a);
     let id_b = add(&db, &b);
 
-    let d = db.read(|c| detail(c, id_b, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id_b, 2026, today())).unwrap();
     assert!(!d.issues.iter().any(|i| i.kind == "DUPLICATE"));
 }
 
@@ -612,7 +613,7 @@ fn 같은_확인_필요가_두_번_쌓이지_않는다() {
         db.write(|c| update(c, id, &i, today())).unwrap();
     }
 
-    let d = db.read(|c| detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| detail(c, id, 2026, today())).unwrap();
     let missing = d.issues.iter().filter(|i| i.kind == "MISSING").count();
     let class = d.issues.iter().filter(|i| i.kind == "CLASS_ASSIGN").count();
     assert_eq!((missing, class), (1, 1));
@@ -648,10 +649,10 @@ fn 확인_필요_집계는_올해_학생만_센다() {
     bad.gender = None;
     add(&db, &bad);
 
-    let counts = db.read(|c| issue::summary(c, 2026)).unwrap();
+    let counts = db.read(|c| issue::summary(c, 2026, today())).unwrap();
     assert!(counts.iter().any(|x| x.kind == "CLASS_ASSIGN" && x.count == 1));
 
-    let next = db.read(|c| issue::summary(c, 2027)).unwrap();
+    let next = db.read(|c| issue::summary(c, 2027, today())).unwrap();
     assert!(next.is_empty(), "내년 학년도에는 아직 학생이 없다");
 }
 
@@ -666,7 +667,7 @@ fn 입력_실수를_지울_수_있다() {
 
     db.write(|c| delete(c, id)).unwrap();
     assert!(all(&db, &filter()).is_empty());
-    assert!(db.read(|c| detail(c, id, 2026)).is_err());
+    assert!(db.read(|c| detail(c, id, 2026, today())).is_err());
 }
 
 #[test]
@@ -715,7 +716,7 @@ fn 실제로_있는_반만_선택지로_준다() {
     add(&db, &input("라", 2, Some("10"), Some(1)));
     add(&db, &input("마", 3, None, None));
 
-    let opts = db.read(|c| class_options(c, 2026)).unwrap();
+    let opts = db.read(|c| class_options(c, 2026, today())).unwrap();
     let got: Vec<(i32, &str)> = opts
         .iter()
         .map(|o| (o.grade, o.class_name.as_str()))
@@ -744,4 +745,213 @@ fn 졸업한_해의_명단에는_졸업_표시가_붙는다() {
     let rows = all(&db, &filter());
     assert!(rows[0].graduated, "그 해 졸업한 학생은 표시가 달라야 한다");
     assert_eq!(rows[0].status, "ENROLLED", "학적 자체는 그대로 재학이다");
+}
+
+// ---------------------------------------------------------------
+// 주보호자 연락처 한꺼번에 설정하기 (v0.1.3)
+// ---------------------------------------------------------------
+
+/// 보호자 연락처를 정해 학생 하나를 넣는다. 빈 문자열은 빈칸이다.
+fn with_phones(db: &Db, name: &str, no: i32, mother: &str, father: &str, primary: &str) -> i64 {
+    let opt = |s: &str| (!s.is_empty()).then(|| s.to_string());
+    let i = StudentInput {
+        name: name.into(),
+        gender: Some("F".into()),
+        birth_raw: Some("170315".into()),
+        mother_phone: opt(mother),
+        father_phone: opt(father),
+        primary_phone: opt(primary),
+        school_year: 2026,
+        grade: 3,
+        class_name: Some("나리".into()),
+        class_no: Some(no),
+        ..Default::default()
+    };
+    db.write(|c| create(c, &i, today())).unwrap()
+}
+
+fn primary_of(db: &Db, id: i64) -> Option<String> {
+    db.read(|c| {
+        Ok(c.query_row(
+            "SELECT primary_phone FROM students WHERE id = ?1",
+            [id],
+            |r| r.get(0),
+        )?)
+    })
+    .unwrap()
+}
+
+fn plan(db: &Db, from: guardian::FillFrom, apply: bool) -> PrimaryFillPlan {
+    let f = ListFilter {
+        school_year: 2026,
+        ..Default::default()
+    };
+    let run = |c: &rusqlite::Connection| primary_fill(c, &f, from, apply, today());
+    if apply {
+        db.write(run).unwrap()
+    } else {
+        db.read(run).unwrap()
+    }
+}
+
+#[test]
+fn 모_연락처가_없는_학생은_주보호자를_비우지_않는다() {
+    let db = db_with_year(2026);
+    let has = with_phones(&db, "모있음", 1, "010-0000-0002", "", "");
+    let none = with_phones(&db, "모없음", 2, "", "010-0000-0003", "010-0000-0003");
+
+    let preview = plan(&db, guardian::FillFrom::Mother, false);
+    assert_eq!(preview.target, 2);
+    assert_eq!(preview.fill_empty, 1);
+    assert_eq!(preview.missing, 1, "모 연락처가 없는 학생은 건드리지 않는다");
+    assert_eq!(preview.changed, 0, "미리보기는 아무것도 바꾸지 않는다");
+    assert_eq!(preview.from_label, "모 연락처");
+
+    let done = plan(&db, guardian::FillFrom::Mother, true);
+    assert_eq!(done.changed, 1);
+    assert_eq!(primary_of(&db, has).as_deref(), Some("010-0000-0002"));
+    assert_eq!(
+        primary_of(&db, none).as_deref(),
+        Some("010-0000-0003"),
+        "가져올 값이 없다고 빈칸으로 덮어쓰지 않는다"
+    );
+}
+
+#[test]
+fn 이미_같은_번호와_덮어쓸_번호를_나누어_센다() {
+    let db = db_with_year(2026);
+    let same = with_phones(&db, "같음", 1, "010-0000-0002", "", "010-0000-0002");
+    let other = with_phones(&db, "다름", 2, "010-0000-0002", "010-0000-0009", "010-0000-0009");
+    let empty = with_phones(&db, "빈칸", 3, "010-0000-0002", "", "");
+
+    let preview = plan(&db, guardian::FillFrom::Mother, false);
+    assert_eq!(preview.target, 3);
+    assert_eq!(preview.already, 1);
+    assert_eq!(preview.overwrite, 1, "다른 번호가 들어 있는 학생은 덮어쓴다고 알린다");
+    assert_eq!(preview.fill_empty, 1);
+    assert_eq!(preview.will_change(), 2);
+
+    plan(&db, guardian::FillFrom::Mother, true);
+    for id in [same, other, empty] {
+        assert_eq!(primary_of(&db, id).as_deref(), Some("010-0000-0002"));
+    }
+}
+
+#[test]
+fn 백명_가운데_모_연락처가_있는_학생만_바뀐다() {
+    let db = db_with_year(2026);
+    for n in 1..=100 {
+        let mother = if n <= 95 { "010-0000-0002" } else { "" };
+        with_phones(&db, &format!("학생{n:03}"), n, mother, "", "");
+    }
+
+    let preview = plan(&db, guardian::FillFrom::Mother, false);
+    assert_eq!(preview.target, 100);
+    assert_eq!(preview.will_change(), 95);
+    assert_eq!(preview.missing, 5);
+
+    let done = plan(&db, guardian::FillFrom::Mother, true);
+    assert_eq!(done.changed, 95);
+
+    let filled: i64 = db
+        .read(|c| {
+            Ok(c.query_row(
+                "SELECT COUNT(*) FROM students WHERE primary_phone IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )?)
+        })
+        .unwrap();
+    assert_eq!(filled, 95, "나머지 5명은 그대로 비어 있다");
+}
+
+#[test]
+fn 부_연락처로도_같은_방법으로_맞춘다() {
+    let db = db_with_year(2026);
+    let id = with_phones(&db, "부로맞춤", 1, "010-0000-0002", "010-0000-0003", "010-0000-0002");
+
+    let preview = plan(&db, guardian::FillFrom::Father, false);
+    assert_eq!(preview.overwrite, 1);
+    assert_eq!(preview.from_label, "부 연락처");
+
+    plan(&db, guardian::FillFrom::Father, true);
+    assert_eq!(primary_of(&db, id).as_deref(), Some("010-0000-0003"));
+}
+
+#[test]
+fn 일괄_설정_대상은_학생명단_조건을_그대로_쓴다() {
+    let db = db_with_year(2026);
+    with_phones(&db, "삼학년", 1, "010-0000-0002", "", "");
+    let other = db
+        .write(|c| {
+            create(
+                c,
+                &StudentInput {
+                    name: "사학년".into(),
+                    mother_phone: Some("010-0000-0004".into()),
+                    school_year: 2026,
+                    grade: 4,
+                    class_name: Some("가람".into()),
+                    class_no: Some(1),
+                    ..Default::default()
+                },
+                today(),
+            )
+        })
+        .unwrap();
+
+    // 3학년만 고른 조건
+    let f = ListFilter {
+        school_year: 2026,
+        grade: Some(3),
+        ..Default::default()
+    };
+    let out = db
+        .write(|c| primary_fill(c, &f, guardian::FillFrom::Mother, true, today()))
+        .unwrap();
+    assert_eq!(out.target, 1, "화면에 보이던 인원과 같다");
+    assert_eq!(out.changed, 1);
+    assert!(primary_of(&db, other).is_none(), "조건 밖 학생은 건드리지 않는다");
+}
+
+#[test]
+fn 전출한_학생은_일괄_설정_대상이_아니다() {
+    let db = db_with_year(2026);
+    with_phones(&db, "재학생", 1, "010-0000-0002", "", "");
+    let gone = with_phones(&db, "전출생", 2, "010-0000-0002", "", "");
+    db.write(|c| {
+        c.execute(
+            "UPDATE enrollments
+                SET status = 'TRANSFER_OUT', transfer_out_date = '2026-05-14'
+              WHERE student_id = ?1",
+            [gone],
+        )?;
+        Ok(())
+    })
+    .unwrap();
+
+    let out = plan(&db, guardian::FillFrom::Mother, true);
+    assert_eq!(out.target, 1, "현재 재학생만 센다");
+    assert!(primary_of(&db, gone).is_none());
+}
+
+#[test]
+fn 주보호자_연락처의_출처를_명단에서_알려_준다() {
+    let db = db_with_year(2026);
+    let m = with_phones(&db, "모번호", 1, "010-0000-0002", "010-0000-0003", "010-0000-0002");
+    let f = with_phones(&db, "부번호", 2, "010-0000-0002", "010-0000-0003", "010-0000-0003");
+    let o = with_phones(&db, "기타번호", 3, "010-0000-0002", "010-0000-0003", "010-0000-0009");
+    let n = with_phones(&db, "없음", 4, "010-0000-0002", "", "");
+
+    let rows = all(&db, &filter());
+    let of = |id: i64| {
+        rows.iter()
+            .find(|r| r.id == id)
+            .map(|r| (r.primary_source.clone(), r.primary_source_label.clone()))
+            .unwrap()
+    };
+    assert_eq!(of(m), ("MOTHER".into(), Some("모".into())));
+    assert_eq!(of(f), ("FATHER".into(), Some("부".into())));
+    assert_eq!(of(o), ("OTHER".into(), Some("기타".into())));
+    assert_eq!(of(n), ("NONE".into(), None));
 }

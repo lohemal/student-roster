@@ -5,10 +5,14 @@
   align-items: start;
 }
 
+/*
+  도움말이 달린 칸과 없는 칸의 **윗선**을 맞춘다. 밑선을 맞추면 도움말 높이만큼
+  그 칸만 위로 밀려 라벨과 입력칸이 어긋난다(v0.1.3에서 고침).
+*/
 .row {
   display: flex;
   gap: var(--sp-2);
-  align-items: flex-end;
+  align-items: flex-start;
 }
 
 .row > label {

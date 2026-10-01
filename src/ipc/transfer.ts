@@ -52,6 +52,18 @@ export interface MoveRow {
   status: string
   statusLabel: string
   issueCount: number
+  /** 아직 오지 않은 이동이면 `IN`(전입 예정) / `OUT`(전출 예정) */
+  pending: 'IN' | 'OUT' | null
+  /** `전입 예정` / `전출 예정` */
+  pendingLabel: string | null
+  /** 오늘 기준으로 현재 재학생인가 — 명단·통계와 같은 판정 */
+  activeNow: boolean
+}
+
+/** 전입 예정을 되돌린 결과 */
+export interface CancelInResult {
+  /** 학적이 하나도 남지 않아 학생 자료까지 지웠는가 */
+  studentRemoved: boolean
 }
 
 export const transferApi = {
@@ -82,6 +94,14 @@ export const transferApi = {
 
   cancelOut: (studentId: number, schoolYear: number) =>
     invoke<void>('transfer_out_cancel', { studentId, schoolYear }),
+
+  /** 아직 오지 않은 전입·전출의 예정일만 바꾼다 */
+  reschedule: (studentId: number, schoolYear: number, date: string) =>
+    invoke<string>('transfer_reschedule', { studentId, schoolYear, date }),
+
+  /** 전입 예정 되돌리기. 이번에 처음 만든 학생이면 학생 자료까지 지운다. */
+  cancelIn: (studentId: number, schoolYear: number) =>
+    invoke<CancelInResult>('transfer_in_cancel', { studentId, schoolYear }),
 
   pastOut: (input: {
     studentId: number | null

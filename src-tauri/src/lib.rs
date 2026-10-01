@@ -142,6 +142,7 @@ pub fn run() {
             commands::student::student_create,
             commands::student::student_update,
             commands::student::student_delete,
+            commands::student::student_primary_fill,
             commands::student::student_class_options,
             // 확인 필요
             commands::issue::issue_summary,
@@ -158,6 +159,8 @@ pub fn run() {
             commands::transfer::transfer_in,
             commands::transfer::transfer_out,
             commands::transfer::transfer_out_cancel,
+            commands::transfer::transfer_reschedule,
+            commands::transfer::transfer_in_cancel,
             commands::transfer::transfer_past_out,
             // 학년도 전환 · 졸업생
             commands::transition::transition_target,

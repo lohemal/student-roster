@@ -9,6 +9,7 @@ use crate::repo::{
     self,
     address::{CategoryRow, Matching, ReapplyResult, RuleRow, Status},
 };
+use super::today;
 use crate::AppState;
 
 // ---------------------------------------------------------------
@@ -22,7 +23,7 @@ pub fn address_category_list(
 ) -> AppResult<Vec<CategoryRow>> {
     state
         .db
-        .read(|c| repo::address::list_categories(c, school_year))
+        .read(|c| repo::address::list_categories(c, school_year, today()))
 }
 
 #[tauri::command]
@@ -52,7 +53,7 @@ pub fn address_category_delete(state: State<'_, AppState>, id: i64) -> AppResult
 
 #[tauri::command]
 pub fn address_rule_list(state: State<'_, AppState>, school_year: i32) -> AppResult<Vec<RuleRow>> {
-    state.db.read(|c| repo::address::list_rules(c, school_year))
+    state.db.read(|c| repo::address::list_rules(c, school_year, today()))
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,7 +90,7 @@ pub fn address_rule_create(
             input.note.as_deref(),
         )?;
         let matching =
-            repo::address::count_matching(c, &input.kind, &input.pattern, school_year)?;
+            repo::address::count_matching(c, &input.kind, &input.pattern, school_year, today())?;
         Ok(RuleCreated { rule_id, matching })
     })
 }
@@ -133,7 +134,7 @@ pub fn address_rule_preview(
 ) -> AppResult<Matching> {
     state
         .db
-        .read(|c| repo::address::count_matching(c, &kind, &pattern, school_year))
+        .read(|c| repo::address::count_matching(c, &kind, &pattern, school_year, today()))
 }
 
 /// 규칙 하나를 그 학년도 학생에게 적용한다. 바뀐 학생 수를 돌려준다.
@@ -145,7 +146,7 @@ pub fn address_rule_apply(
 ) -> AppResult<i64> {
     let today = chrono::Local::now().date_naive();
     state.db.write(|c| {
-        let changed = repo::address::apply_rule(c, rule_id, school_year)?;
+        let changed = repo::address::apply_rule(c, rule_id, school_year, today)?;
         sync_year_issues(c, school_year, today)?;
         Ok(changed)
     })
@@ -200,7 +201,7 @@ pub fn address_reapply(
         let today = chrono::Local::now().date_naive();
         let outcome = db.write(|c| {
             job.progress("CLASSIFY", "주소 분류 확인", 0, 1);
-            let out = repo::address::reapply(c, school_year, |done, total| {
+            let out = repo::address::reapply(c, school_year, today, |done, total| {
                 job.progress("CLASSIFY", "주소 분류 확인", done, total)
             })?;
             job.progress("ISSUES", "확인 필요 정리", 0, 1);

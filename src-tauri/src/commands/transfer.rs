@@ -8,13 +8,13 @@ use crate::error::AppResult;
 use crate::repo::{
     self,
     stats::GradeCounts,
-    transfer::{MoveRow, PastOutInput, StudentMatch, TransferInInput, TransferInResult, TransferOutInput},
+    transfer::{
+        CancelInResult, MoveRow, PastOutInput, StudentMatch, TransferInInput, TransferInResult,
+        TransferOutInput,
+    },
 };
+use super::today;
 use crate::AppState;
-
-fn today() -> chrono::NaiveDate {
-    chrono::Local::now().date_naive()
-}
 
 /// 이름·생년월일로 기존 학생을 찾는다. **같은 학생인지는 사람이 정한다.**
 #[tauri::command]
@@ -36,7 +36,7 @@ pub fn transfer_class_counts(
     school_year: i32,
     grade: i32,
 ) -> AppResult<GradeCounts> {
-    state.db.read(|c| repo::stats::grade_counts(c, school_year, grade))
+    state.db.read(|c| repo::stats::grade_counts(c, school_year, grade, today()))
 }
 
 /// 그 반에서 이미 쓰이는 번호. 저장하기 전에 겹침을 알려 주는 데 쓴다.
@@ -49,7 +49,7 @@ pub fn transfer_used_numbers(
 ) -> AppResult<Vec<i32>> {
     state
         .db
-        .read(|c| repo::stats::used_numbers(c, school_year, grade, class_name.as_deref()))
+        .read(|c| repo::stats::used_numbers(c, school_year, grade, class_name.as_deref(), today()))
 }
 
 /// 그 학년도의 전입생 또는 전출생 목록.
@@ -63,7 +63,7 @@ pub fn transfer_list(
 ) -> AppResult<Vec<MoveRow>> {
     state
         .db
-        .read(|c| repo::transfer::list(c, school_year, want_in, grade, q.as_deref()))
+        .read(|c| repo::transfer::list(c, school_year, want_in, grade, q.as_deref(), today()))
 }
 
 /// 전입 처리.
@@ -95,6 +95,33 @@ pub fn transfer_out_cancel(
     state
         .db
         .write(|c| repo::transfer::transfer_out_cancel(c, student_id, school_year, today()))
+}
+
+/// 아직 오지 않은 전입·전출의 **예정일만** 바꾼다.
+///
+/// 상태를 손으로 고치는 길이 아니다 — 날짜만 바꾸면 현재 재학생 판정은 저절로 따라온다.
+#[tauri::command]
+pub fn transfer_reschedule(
+    state: State<'_, AppState>,
+    student_id: i64,
+    school_year: i32,
+    date: String,
+) -> AppResult<String> {
+    state
+        .db
+        .write(|c| repo::transfer::reschedule(c, student_id, school_year, &date, today()))
+}
+
+/// 전입 예정을 되돌린다. 이번에 처음 만든 학생이면 학생 자료까지 지운다.
+#[tauri::command]
+pub fn transfer_in_cancel(
+    state: State<'_, AppState>,
+    student_id: i64,
+    school_year: i32,
+) -> AppResult<CancelInResult> {
+    state
+        .db
+        .write(|c| repo::transfer::transfer_in_cancel(c, student_id, school_year, today()))
 }
 
 /// 프로그램을 쓰기 전에 이미 나간 학생을 뒤늦게 적어 넣는다.

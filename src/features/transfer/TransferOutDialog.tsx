@@ -84,7 +84,10 @@ export function TransferOutDialog({
             </span>
           </div>
 
-          <Field label="전출일">
+          <Field
+            label="전출일"
+            hint="앞으로 올 날도 됩니다 — 그날까지는 명단에 그대로 있고 [전출 예정]으로 보입니다"
+          >
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field label="전출 학교·지역" hint="아는 만큼만 적어 주세요">

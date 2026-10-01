@@ -3,10 +3,11 @@
 //! 규칙 하나: **확인할 것이 있다고 저장을 막지 않는다.** 학생은 일단 등록하고
 //! 여기에 표시만 남긴다. 나중에 자료를 고치면 `sync` 가 알아서 닫아 준다.
 
+use chrono::NaiveDate;
 use rusqlite::{params, params_from_iter, types::Value, Connection};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
+use crate::domain::enroll;
 use crate::domain::label;
 use crate::error::AppResult;
 
@@ -201,12 +202,17 @@ pub struct IssueCount {
 /// **지금 다니는 학생만** 센다. 지난 학년도 학생이나 전출한 학생의 표시가 올해
 /// 업무함에 쌓이면 정작 해야 할 일이 묻힌다. 자료를 지우지는 않으므로 전출을
 /// 되돌리면 그 학생의 표시도 함께 돌아온다.
-pub fn summary(c: &Connection, school_year: i32) -> AppResult<Vec<IssueCount>> {
+pub fn summary(
+    c: &Connection,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Vec<IssueCount>> {
+    let active = enroll::active_sql("e.", asof);
     let mut st = c.prepare(&format!(
         "SELECT i.kind, COUNT(*)
            FROM issues i
            JOIN enrollments e ON e.student_id = i.student_id AND e.school_year = ?1
-          WHERE i.status = 'OPEN' AND e.{ACTIVE}
+          WHERE i.status = 'OPEN' AND {active}
           GROUP BY i.kind
           ORDER BY COUNT(*) DESC, i.kind"
     ))?;
@@ -286,14 +292,14 @@ const LABEL_SQL: &str = "(e.grade || '-' || \
      CASE WHEN e.class_name IS NULL OR TRIM(e.class_name) = '' THEN '미정' ELSE e.class_name END \
      || ' ' || s.name)";
 
-fn where_of(f: &IssueFilter) -> (String, Vec<Value>) {
+fn where_of(f: &IssueFilter, asof: NaiveDate) -> (String, Vec<Value>) {
     let mut sql: Vec<String> = vec!["e.school_year = ?".into()];
     let mut args: Vec<Value> = vec![Value::Integer(f.school_year as i64)];
 
     // 업무함은 **지금 다니는 학생**의 일만 다룬다. 전출한 학생의 주소·누락 표시가
     // 남아 있으면 오늘 할 일을 가린다. 자료는 그대로 두므로 전출을 되돌리면 돌아온다.
     if !f.include_left {
-        sql.push(format!("e.{ACTIVE}"));
+        sql.push(enroll::active_sql("e.", asof));
     }
 
     match f.status.as_deref().unwrap_or("OPEN") {
@@ -336,8 +342,9 @@ pub fn list(
     f: &IssueFilter,
     limit: i64,
     offset: i64,
+    asof: NaiveDate,
 ) -> AppResult<IssueListPage> {
-    let (where_sql, args) = where_of(f);
+    let (where_sql, args) = where_of(f, asof);
     let from = "FROM issues i
                 JOIN enrollments e ON e.student_id = i.student_id
                 JOIN students s    ON s.id = i.student_id";

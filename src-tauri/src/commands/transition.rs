@@ -13,11 +13,8 @@ use crate::error::{AppError, AppResult};
 use crate::job::{self, Job};
 use crate::repo::{self, transition::YearState};
 use crate::transition::{self, AssignSet, Person, Plan};
+use super::today;
 use crate::AppState;
-
-fn today() -> chrono::NaiveDate {
-    chrono::Local::now().date_naive()
-}
 
 // ---------------------------------------------------------------
 // 1단계 — 대상 확인
@@ -72,16 +69,16 @@ pub fn transition_target(
         };
         let to = to_year.unwrap_or(from + 1);
 
-        let seats = repo::transition::seats(c, from)?;
-        let graduating: Vec<Person> = transition::graduation_candidates(c, from)?;
+        let seats = repo::transition::seats(c, from, today())?;
+        let graduating: Vec<Person> = transition::graduation_candidates(c, from, today())?;
         let promoting = seats
             .iter()
             .filter(|s| crate::domain::transition::next_grade(s.grade).is_some())
             .count();
 
         Ok(TargetInfo {
-            from: repo::transition::year_state(c, from)?.into(),
-            to: repo::transition::year_state(c, to)?.into(),
+            from: repo::transition::year_state(c, from, today())?.into(),
+            to: repo::transition::year_state(c, to, today())?.into(),
             done_at: repo::transition::done_before(c, from, to)?,
             graduating,
             promoting,

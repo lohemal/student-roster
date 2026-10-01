@@ -4,6 +4,7 @@
 //! 47명이 들어 있으면 둘 다 못 쓴다. 그래서 `ListFilter` 와 `ORDER_BY_ROSTER` 를
 //! 그대로 쓰고 내보내기 전용 조건이나 정렬을 따로 만들지 않는다.
 
+use chrono::NaiveDate;
 use rusqlite::{params_from_iter, Connection};
 
 use crate::domain::label;
@@ -36,8 +37,8 @@ pub struct Row {
 }
 
 /// 조건에 드는 학생을 학생명단과 같은 차례로 읽는다.
-pub fn rows(c: &Connection, f: &ListFilter) -> AppResult<Vec<Row>> {
-    let w = build_where_pub(f);
+pub fn rows(c: &Connection, f: &ListFilter, asof: NaiveDate) -> AppResult<Vec<Row>> {
+    let w = build_where_pub(f, asof);
     let where_sql = w.0.join(" AND ");
 
     let sql = format!(
@@ -83,7 +84,7 @@ pub fn rows(c: &Connection, f: &ListFilter) -> AppResult<Vec<Row>> {
 
     // 형제 이름표는 저장해 두지 않는다 — 진급하면 바뀌어야 하므로 여기서 만든다
     for row in out.iter_mut() {
-        row.siblings = sibling_repo::labels_of(c, row.student_id, f.school_year)?;
+        row.siblings = sibling_repo::labels_of(c, row.student_id, f.school_year, asof)?;
     }
     Ok(out)
 }

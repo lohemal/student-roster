@@ -84,7 +84,7 @@ fn 새_학생을_저장하고_학적과_사건까지_남긴다() {
     let id: i64 = db
         .read(|c| Ok(c.query_row("SELECT id FROM students", [], |r| r.get(0))?))
         .unwrap();
-    let d = db.read(|c| student::detail(c, id, 2026)).unwrap();
+    let d = db.read(|c| student::detail(c, id, 2026, today())).unwrap();
     assert_eq!(d.name, "홍길동");
     assert_eq!(d.birth_date.as_deref(), Some("2017-03-15"));
     assert_eq!(d.mother_phone.as_deref(), Some("010-1234-5678"), "저장하며 정리된다");
@@ -401,7 +401,7 @@ fn 지난_학년도_학생에게_올해_학적을_만들어_준다() {
     assert_eq!(out.updated, 1);
     assert_eq!(count_students(&db), 1);
 
-    let d = db.read(|c| student::detail(c, id, 2027)).unwrap();
+    let d = db.read(|c| student::detail(c, id, 2027, today())).unwrap();
     assert_eq!(d.enrollments.len(), 2, "학년도별로 학적이 하나씩");
     let e = d.enrollment.expect("2027 학적");
     assert_eq!((e.grade, e.class_name.as_deref(), e.class_no), (4, Some("나리"), Some(5)));
@@ -425,7 +425,7 @@ fn 확인_필요_건수를_결과에_담는다() {
     assert_eq!(out.added, 2);
     assert!(out.issue_count > 0, "확인 필요가 실제로 세어져야 한다");
 
-    let real = db.read(|c| issue::summary(c, 2026)).unwrap();
+    let real = db.read(|c| issue::summary(c, 2026, today())).unwrap();
     let total: i64 = real.iter().map(|k| k.count).sum();
     assert_eq!(out.issue_count, total, "결과와 실제 표시가 같아야 한다");
 }

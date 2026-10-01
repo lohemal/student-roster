@@ -10,6 +10,7 @@ use crate::repo::{
     self,
     sibling::{BatchConfirm, CandidateRow, ScanResult, SiblingView},
 };
+use super::today;
 use crate::AppState;
 
 /// 한 학생의 형제 관계 (확정 · 후보 · 형제 아님).
@@ -21,7 +22,7 @@ pub fn sibling_list(
 ) -> AppResult<Vec<SiblingView>> {
     state
         .db
-        .read(|c| repo::sibling::list_for_student(c, student_id, school_year))
+        .read(|c| repo::sibling::list_for_student(c, student_id, school_year, today()))
 }
 
 /// 형제로 확인한다.
@@ -82,7 +83,7 @@ pub fn sibling_candidates(
     state: State<'_, AppState>,
     school_year: i32,
 ) -> AppResult<Vec<CandidateRow>> {
-    state.db.read(|c| repo::sibling::candidates(c, school_year))
+    state.db.read(|c| repo::sibling::candidates(c, school_year, today()))
 }
 
 /// 고른 형제 후보를 **한 번에** 확정한다.
@@ -174,7 +175,7 @@ pub fn sibling_rescan(
     std::thread::spawn(move || {
         let today = chrono::Local::now().date_naive();
         let outcome = db.write(|c| {
-            let out = repo::sibling::scan(c, school_year, |stage, done, total| {
+            let out = repo::sibling::scan(c, school_year, today, |stage, done, total| {
                 job.progress(stage, stage_label(stage), done, total)
             })?;
 

@@ -2,7 +2,9 @@
 
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
+use chrono::NaiveDate;
+
+use crate::domain::enroll;
 use crate::error::{AppError, AppResult};
 
 pub fn get(c: &Connection, key: &str) -> AppResult<Option<String>> {
@@ -31,11 +33,12 @@ pub struct SchoolYear {
     pub created_at: String,
 }
 
-pub fn list_years(c: &Connection) -> AppResult<Vec<SchoolYear>> {
+pub fn list_years(c: &Connection, asof: NaiveDate) -> AppResult<Vec<SchoolYear>> {
+    let active = enroll::active_sql("e.", asof);
     let mut st = c.prepare(&format!(
         "SELECT y.year, y.is_current, y.created_at,
                 (SELECT COUNT(*) FROM enrollments e
-                  WHERE e.school_year = y.year AND e.{ACTIVE})
+                  WHERE e.school_year = y.year AND {active})
            FROM school_years y
           ORDER BY y.year DESC",
     ))?;
@@ -130,7 +133,8 @@ mod tests {
         .unwrap();
         assert_eq!(db.read(current_year).unwrap(), Some(2027));
 
-        let years = db.read(list_years).unwrap();
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 9, 15).unwrap();
+        let years = db.read(|c| list_years(c, today)).unwrap();
         assert_eq!(years.len(), 2);
         assert!(years.iter().filter(|y| y.is_current).count() == 1);
     }

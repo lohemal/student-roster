@@ -368,9 +368,9 @@ pub fn build(
         ));
     }
 
-    let seats = repo::seats(c, from_year)?;
-    let state_key = repo::state_key(c, from_year)?;
-    let target = repo::year_state(c, to_year)?;
+    let seats = repo::seats(c, from_year, today)?;
+    let state_key = repo::state_key(c, from_year, today)?;
+    let target = repo::year_state(c, to_year, today)?;
     let mut bags: Vec<Bag> = Vec::new();
 
     // 대상 학년도가 비어 있어야 한다 — 조용히 섞지 않는다
@@ -830,8 +830,12 @@ pub fn apply(
 }
 
 /// 졸업 대상으로 제안할 학생 (원본 학년도 6학년 재학생).
-pub fn graduation_candidates(c: &Connection, from_year: i32) -> AppResult<Vec<Person>> {
-    Ok(repo::seats(c, from_year)?
+pub fn graduation_candidates(
+    c: &Connection,
+    from_year: i32,
+    today: NaiveDate,
+) -> AppResult<Vec<Person>> {
+    Ok(repo::seats(c, from_year, today)?
         .iter()
         .filter(|s| s.grade == rules::MAX_GRADE)
         .map(|s| person(s, None))

@@ -43,8 +43,12 @@ export interface StatusBadge {
 export function statusBadge(row: {
   status: EnrollStatus
   graduated: boolean
+  /** 아직 오지 않은 이동이 있으면 그 말을 먼저 보여 준다 */
+  pendingLabel?: string | null
 }): StatusBadge {
   if (row.graduated) return { label: '졸업', tone: 'neutral' }
+  // `전입 예정 · 2026.10.05.` — 지금 명단에 드는지 아닌지가 날짜로 갈린다
+  if (row.pendingLabel) return { label: row.pendingLabel, tone: 'warn' }
   switch (row.status) {
     case 'TRANSFER_IN':
       return { label: '전입', tone: 'info' }

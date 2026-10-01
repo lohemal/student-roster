@@ -8,11 +8,12 @@
 //!   * 원본 주소(`address_raw`)는 여기서도 절대 고치지 않는다.
 //!   * 로그에 주소를 남기지 않는다 — 개인정보다.
 
+use chrono::NaiveDate;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
 use crate::domain::address::{self, CategoryRef, Decision, Parsed, RuleKind, RuleRef};
-use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
+use crate::domain::enroll;
 use crate::error::{AppError, AppResult};
 
 // ---------------------------------------------------------------
@@ -251,14 +252,19 @@ pub struct CategoryRow {
     pub rule_count: i64,
 }
 
-pub fn list_categories(c: &Connection, school_year: i32) -> AppResult<Vec<CategoryRow>> {
+pub fn list_categories(
+    c: &Connection,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Vec<CategoryRow>> {
+    let active = enroll::active_sql("e.", asof);
     let mut st = c.prepare(&format!(
         "SELECT ac.id, ac.name, ac.sort_order, ac.is_builtin,
                 (SELECT COUNT(*) FROM students s
                    JOIN enrollments e ON e.student_id = s.id
                   WHERE s.address_category_id = ac.id
                     AND e.school_year = ?1
-                    AND e.{ACTIVE}),
+                    AND {active}),
                 (SELECT COUNT(*) FROM address_rules r WHERE r.category_id = ac.id)
            FROM address_categories ac
           ORDER BY ac.sort_order, ac.id",
@@ -378,14 +384,19 @@ pub struct RuleRow {
     pub created_at: String,
 }
 
-pub fn list_rules(c: &Connection, school_year: i32) -> AppResult<Vec<RuleRow>> {
+pub fn list_rules(
+    c: &Connection,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Vec<RuleRow>> {
+    let active = enroll::active_sql("e.", asof);
     let mut st = c.prepare(&format!(
         "SELECT r.id, r.kind, r.pattern, r.category_id, ac.name, r.is_active, r.note,
                 (SELECT COUNT(*) FROM students s
                    JOIN enrollments e ON e.student_id = s.id
                   WHERE s.address_rule_id = r.id
                     AND e.school_year = ?1
-                    AND e.{ACTIVE}),
+                    AND {active}),
                 r.created_at
            FROM address_rules r
            JOIN address_categories ac ON ac.id = r.category_id
@@ -511,14 +522,16 @@ pub fn count_matching(
     kind: &str,
     pattern: &str,
     school_year: i32,
+    asof: NaiveDate,
 ) -> AppResult<Matching> {
     let (k, p) = check_rule(kind, pattern)?;
+    let active = enroll::active_sql("e.", asof);
 
     let mut st = c.prepare(&format!(
         "SELECT s.id, s.address_raw, s.address_source
            FROM students s
            JOIN enrollments e ON e.student_id = s.id
-          WHERE e.school_year = ?1 AND e.{ACTIVE}
+          WHERE e.school_year = ?1 AND {active}
             AND s.address_raw IS NOT NULL",
     ))?;
     let rows: Vec<(i64, String, String)> = st
@@ -583,13 +596,15 @@ pub struct ReapplyResult {
 pub fn reapply(
     c: &Connection,
     school_year: i32,
+    asof: NaiveDate,
     mut on_progress: impl FnMut(usize, usize),
 ) -> AppResult<ReapplyResult> {
+    let active = enroll::active_sql("e.", asof);
     let mut st = c.prepare(&format!(
         "SELECT s.id, s.address_raw, s.address_source, s.address_category_id
            FROM students s
            JOIN enrollments e ON e.student_id = s.id
-          WHERE e.school_year = ?1 AND e.{ACTIVE}
+          WHERE e.school_year = ?1 AND {active}
           ORDER BY s.id",
     ))?;
     let rows: Vec<(i64, Option<String>, String, Option<i64>)> = st
@@ -634,7 +649,13 @@ pub fn reapply(
 }
 
 /// 규칙 하나를 그 학년도 학생에게 적용한다. 걸리는 학생만 다시 판정한다.
-pub fn apply_rule(c: &Connection, rule_id: i64, school_year: i32) -> AppResult<i64> {
+pub fn apply_rule(
+    c: &Connection,
+    rule_id: i64,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<i64> {
+    let active = enroll::active_sql("e.", asof);
     let (kind, pattern): (String, String) = c
         .query_row(
             "SELECT kind, pattern FROM address_rules WHERE id = ?1",
@@ -649,7 +670,7 @@ pub fn apply_rule(c: &Connection, rule_id: i64, school_year: i32) -> AppResult<i
         "SELECT s.id, s.address_raw, s.address_category_id
            FROM students s
            JOIN enrollments e ON e.student_id = s.id
-          WHERE e.school_year = ?1 AND e.{ACTIVE}
+          WHERE e.school_year = ?1 AND {active}
             AND s.address_source <> 'MANUAL'
             AND s.address_raw IS NOT NULL",
     ))?;

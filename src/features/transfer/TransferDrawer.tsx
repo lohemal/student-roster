@@ -12,8 +12,9 @@ import {
   Notice,
 } from '@/components/ui'
 import { StudentForm, emptyStudent } from '@/features/student/StudentForm'
-import type { StudentInput } from '@/ipc/student'
+import { studentApi, type StudentDetail, type StudentInput } from '@/ipc/student'
 import { transferApi, type StudentMatch } from '@/ipc/transfer'
+import { birthDisplay } from '@/lib/format'
 import { ClassCountsTable } from './ClassCountsTable'
 import { StudentLookup } from './StudentLookup'
 import s from './Transfer.module.css'
@@ -33,7 +34,7 @@ const TEXT = {
   in: {
     title: '전입생 등록',
     dateLabel: '전입일',
-    dateHint: '실제로 학교에 온 날입니다',
+    dateHint: '앞으로 올 날도 됩니다 — 그날까지는 전입 예정입니다',
     submit: '전입 등록',
   },
   pastOut: {
@@ -67,6 +68,9 @@ export function TransferDrawer({
   const t = TEXT[mode]
   const [step, setStep] = useState<'lookup' | 'form'>('lookup')
   const [picked, setPicked] = useState<StudentMatch | null>(null)
+  /** 고른 기존 학생의 전체 자료 — 무엇을 이어 쓰는지 사람이 볼 수 있게 한다 */
+  const [detail, setDetail] = useState<StudentDetail | null>(null)
+  const [loadError, setLoadError] = useState<unknown>(null)
   const [form, setForm] = useState<StudentInput>(() => emptyStudent(schoolYear))
   const [date, setDate] = useState(todayIso())
   const [toSchool, setToSchool] = useState('')
@@ -126,22 +130,68 @@ export function TransferDrawer({
 
   const startNew = (name: string, birth: string) => {
     setPicked(null)
+    setDetail(null)
+    setLoadError(null)
     setForm({ ...emptyStudent(schoolYear), name, birthRaw: birth })
     setStep('form')
   }
 
-  const startExisting = (m: StudentMatch) => {
+  /**
+   * 기존 학생을 골랐다.
+   *
+   * **이미 DB 에 있는 학생정보를 다시 입력하게 하지 않는다.** 주소·보호자·연락처·비고를
+   * 그대로 싣고, 사람이 새로 정할 것은 이동 정보(날짜)와 새 학적(학년·반·번호)뿐이다.
+   * 학생 자료를 복사하는 것이 아니라 **같은 `studentId` 를 그대로 쓴다.**
+   */
+  const startExisting = async (m: StudentMatch) => {
     setPicked(m)
+    setLoadError(null)
     // 지난 학적을 시작값으로 삼는다 — 대개 학년만 올라간다
     const last = m.history[0]
-    setForm({
+    const grade = last
+      ? Math.min(
+          6,
+          last.schoolYear === schoolYear
+            ? gradeOf(last.whereAt)
+            : gradeOf(last.whereAt) + 1,
+        )
+      : 1
+    const base: StudentInput = {
       ...emptyStudent(schoolYear),
       name: m.name,
-      gender: m.gender ?? '',
+      gender: m.gender,
       birthRaw: m.birthRaw ?? m.birthDate ?? '',
-      grade: last ? Math.min(6, last.schoolYear === schoolYear ? gradeOf(last.whereAt) : gradeOf(last.whereAt) + 1) : 1,
-    })
+      grade,
+    }
+    setForm(base)
     setStep('form')
+
+    try {
+      const d = await studentApi.get(m.studentId, schoolYear)
+      setDetail(d)
+      setForm({
+        ...base,
+        name: d.name,
+        gender: d.gender,
+        birthRaw: d.birthRaw ?? d.birthDate ?? '',
+        addressRaw: d.addressRaw ?? '',
+        fatherName: d.fatherName ?? '',
+        motherName: d.motherName ?? '',
+        fatherPhone: d.fatherPhone ?? '',
+        motherPhone: d.motherPhone ?? '',
+        primaryPhone: d.primaryPhone ?? '',
+        note: d.note ?? '',
+        // 올해 학적이 이미 있으면(되돌아오는 경우) 그 자리를 그대로 보여 준다
+        className: d.enrollment?.className ?? '',
+        classNo: d.enrollment?.classNo ?? null,
+        grade: d.enrollment?.grade ?? grade,
+        // 직접 지정한 주소 분류는 다시 판정하지 않는다
+        keepManualAddress: d.addressSource === 'MANUAL',
+      })
+    } catch (e) {
+      // 불러오지 못해도 등록은 막지 않는다 — 무엇이 비었는지만 알린다
+      setLoadError(e)
+    }
   }
 
   return (
@@ -183,14 +233,12 @@ export function TransferDrawer({
           <ErrorNotice error={save.error} />
 
           {picked ? (
-            <div className={s.pickedStudent}>
-              <span className={s.pickedName}>{picked.name}</span>
-              <span>이미 등록된 학생입니다. 같은 학생으로 이어서 기록합니다.</span>
-              <span className={s.pickedSpacer} />
-              <Button size="sm" variant="ghost" icon={X} onClick={() => setStep('lookup')}>
-                고르기 취소
-              </Button>
-            </div>
+            <PickedStudent
+              match={picked}
+              detail={detail}
+              error={loadError}
+              onUndo={() => setStep('lookup')}
+            />
           ) : (
             <Notice tone="info">처음 오는 학생으로 새로 등록합니다.</Notice>
           )}
@@ -244,4 +292,85 @@ export function TransferDrawer({
 function gradeOf(whereAt: string): number {
   const n = Number(whereAt.split('-')[0])
   return Number.isFinite(n) && n >= 1 && n <= 6 ? n : 1
+}
+
+/**
+ * 고른 기존 학생이 무엇을 이어 쓰는지.
+ *
+ * **이미 들어 있는 것을 보여 주어 다시 입력하지 않게 한다.** 접었다 펼 수 있게 두어
+ * 평소에는 한 줄만 차지한다.
+ */
+function PickedStudent({
+  match,
+  detail,
+  error,
+  onUndo,
+}: {
+  match: StudentMatch
+  detail: StudentDetail | null
+  error: unknown
+  onUndo: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const last = match.history[0]
+  const guardians = detail
+    ? [
+        detail.fatherName && `부 ${detail.fatherName}`,
+        detail.motherName && `모 ${detail.motherName}`,
+        detail.fatherPhone && `부 연락처 ${detail.fatherPhone}`,
+        detail.motherPhone && `모 연락처 ${detail.motherPhone}`,
+        detail.primaryPhone && `주보호자 ${detail.primaryPhone}`,
+      ].filter(Boolean)
+    : []
+
+  return (
+    <div className={s.picked}>
+      <div className={s.pickedStudent}>
+        <span className={s.pickedName}>{match.name}</span>
+        <span>
+          기존 학생 정보를 불러왔습니다. 같은 학생으로 이어서 기록합니다
+          {last && <> · 이전 학적 {last.schoolYear}학년도 {last.whereAt}</>}
+        </span>
+        <span className={s.pickedSpacer} />
+        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+          {open ? '접기' : '자세히'}
+        </Button>
+        <Button size="sm" variant="ghost" icon={X} onClick={onUndo}>
+          고르기 취소
+        </Button>
+      </div>
+
+      <ErrorNotice error={error} />
+
+      {open && (
+        <dl className={s.pickedDetail}>
+          <dt>생년월일</dt>
+          <dd>{birthDisplay(detail?.birthDate ?? match.birthDate) || match.birthRaw || '없음'}</dd>
+          <dt>주소</dt>
+          <dd>
+            {detail?.addressRaw || <span className={s.pickedFaint}>없음</span>}
+            {detail?.addressCategory && <> · {detail.addressCategory}</>}
+          </dd>
+          <dt>보호자</dt>
+          <dd>
+            {guardians.length > 0 ? (
+              guardians.join(' · ')
+            ) : (
+              <span className={s.pickedFaint}>등록된 정보 없음</span>
+            )}
+          </dd>
+          <dt>비고</dt>
+          <dd>{detail?.note || <span className={s.pickedFaint}>없음</span>}</dd>
+          <dt>학적 이력</dt>
+          <dd>
+            {match.history.length === 0
+              ? '없음'
+              : match.history
+                  .map((h) => `${h.schoolYear}학년도 ${h.whereAt} (${h.statusLabel})`)
+                  .join(' · ')}
+          </dd>
+        </dl>
+      )}
+    </div>
+  )
 }

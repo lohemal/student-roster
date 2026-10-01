@@ -75,7 +75,7 @@ fn has_address_issue(db: &Db, id: i64) -> bool {
 #[test]
 fn 기본_분류로_주택과_기타가_들어_있다() {
     let db = db();
-    let cats = db.read(|c| list_categories(c, 2026)).unwrap();
+    let cats = db.read(|c| list_categories(c, 2026, today())).unwrap();
     let names: Vec<&str> = cats.iter().map(|c| c.name.as_str()).collect();
     assert_eq!(names, vec!["주택", "기타"]);
     assert!(cats.iter().all(|c| c.is_builtin));
@@ -86,11 +86,11 @@ fn 분류를_만들고_이름을_고친다() {
     let db = db();
     let id = category(&db, "5단지");
 
-    let cats = db.read(|c| list_categories(c, 2026)).unwrap();
+    let cats = db.read(|c| list_categories(c, 2026, today())).unwrap();
     assert!(cats.iter().any(|c| c.name == "5단지" && !c.is_builtin));
 
     db.write(|c| rename_category(c, id, "가온마을5단지")).unwrap();
-    let cats = db.read(|c| list_categories(c, 2026)).unwrap();
+    let cats = db.read(|c| list_categories(c, 2026, today())).unwrap();
     assert!(cats.iter().any(|c| c.name == "가온마을5단지"));
 }
 
@@ -131,7 +131,7 @@ fn 아무도_쓰지_않는_분류는_지울_수_있다() {
     let db = db();
     let cat = category(&db, "안쓰는분류");
     db.write(|c| delete_category(c, cat)).unwrap();
-    let cats = db.read(|c| list_categories(c, 2026)).unwrap();
+    let cats = db.read(|c| list_categories(c, 2026, today())).unwrap();
     assert!(!cats.iter().any(|c| c.name == "안쓰는분류"));
 }
 
@@ -145,7 +145,7 @@ fn 도로명_규칙은_주소를_통째로_넣어도_도로만_남는다() {
     let cat = category(&db, "5단지");
     let rid = add_rule(&db, "ROAD", "○○시 ○○로 123, 101동 1001호", cat);
 
-    let rules = db.read(|c| list_rules(c, 2026)).unwrap();
+    let rules = db.read(|c| list_rules(c, 2026, today())).unwrap();
     let r = rules.iter().find(|r| r.id == rid).unwrap();
     assert_eq!(r.pattern, "○○로 123", "동·호수는 규칙에 들어가지 않는다");
     assert_eq!(r.kind_label, "도로명");
@@ -271,7 +271,7 @@ fn 직접_지정한_학생은_전체_재적용에서_바뀌지_않는다() {
 
     // 같은 주소를 3단지로 보내는 규칙을 만들고 전체 재적용
     add_rule(&db, "ROAD", "○○로 123", three);
-    let out = db.write(|c| reapply(c, 2026, |_, _| {})).unwrap();
+    let out = db.write(|c| reapply(c, 2026, today(), |_, _| {})).unwrap();
 
     assert_eq!(
         cat_of(&db, sid),
@@ -314,7 +314,7 @@ fn 같은_주소_학생이_몇_명인지_미리_세어_본다() {
     db.write(|c| set_manual(c, manual, Some(cat))).unwrap();
 
     let m = db
-        .read(|c| count_matching(c, "ROAD", "○○로 123", 2026))
+        .read(|c| count_matching(c, "ROAD", "○○로 123", 2026, today()))
         .unwrap();
     assert_eq!(m.total, 6, "직접 지정 학생도 걸리기는 한다");
     assert_eq!(m.unclassified, 5, "새로 분류될 학생");
@@ -331,10 +331,10 @@ fn 규칙을_적용하면_같은_주소_학생이_한꺼번에_분류된다() {
     add(&db, "다른집", "△△로 456");
 
     let rid = add_rule(&db, "ROAD", "○○로 123", cat);
-    let changed = db.write(|c| apply_rule(c, rid, 2026)).unwrap();
+    let changed = db.write(|c| apply_rule(c, rid, 2026, today())).unwrap();
 
     assert_eq!(changed, 10);
-    let rules = db.read(|c| list_rules(c, 2026)).unwrap();
+    let rules = db.read(|c| list_rules(c, 2026, today())).unwrap();
     assert_eq!(rules[0].applied, 10, "적용 학생 수가 보여야 한다");
 
     // 다른 주소 학생은 그대로 미분류
@@ -361,7 +361,7 @@ fn 규칙을_적용해도_직접_지정_학생은_건드리지_않는다() {
     let auto = add(&db, "보통학생", "○○로 123, 2동 2호");
 
     let rid = add_rule(&db, "ROAD", "○○로 123", three);
-    db.write(|c| apply_rule(c, rid, 2026)).unwrap();
+    db.write(|c| apply_rule(c, rid, 2026, today())).unwrap();
 
     assert_eq!(cat_of(&db, manual).0.as_deref(), Some("5단지"));
     assert_eq!(cat_of(&db, auto).0.as_deref(), Some("3단지"));
@@ -403,7 +403,7 @@ fn 잘_되던_학생도_규칙이_늘어_부딪히면_확인_필요가_다시_�
     // 같은 순위의 다른 규칙이 생겼다
     add_rule(&db, "CONTAINS", "○○로", five);
     db.write(|c| {
-        reapply(c, 2026, |_, _| {})?;
+        reapply(c, 2026, today(), |_, _| {})?;
         student::sync_issues(c, sid, 2026, today())
     })
     .unwrap();
@@ -547,7 +547,7 @@ fn 전체_재적용_집계가_실제_자료와_맞는다() {
     let manual = add(&db, "직접", "○○로 123, 999동 9호");
     db.write(|c| set_manual(c, manual, Some(three))).unwrap();
 
-    let out = db.write(|c| reapply(c, 2026, |_, _| {})).unwrap();
+    let out = db.write(|c| reapply(c, 2026, today(), |_, _| {})).unwrap();
 
     assert_eq!(out.total, 17);
     assert_eq!(out.by_rule, 6, "도로명 4 + 포함 2");
@@ -577,7 +577,7 @@ fn 재적용이_진행_상황을_알려_준다() {
         add(&db, &format!("학생{i}"), "○○로 123");
     }
     let mut seen: Vec<(usize, usize)> = Vec::new();
-    db.write(|c| reapply(c, 2026, |d, t| seen.push((d, t)))).unwrap();
+    db.write(|c| reapply(c, 2026, today(), |d, t| seen.push((d, t)))).unwrap();
 
     assert!(!seen.is_empty());
     assert_eq!(seen.last(), Some(&(5, 5)));
@@ -606,7 +606,7 @@ fn 규칙을_꺼_두면_적용되지_않는다() {
 
     db.write(|c| update_rule(c, rid, "ROAD", "○○로 123", cat, false))
         .unwrap();
-    db.write(|c| reapply(c, 2026, |_, _| {})).unwrap();
+    db.write(|c| reapply(c, 2026, today(), |_, _| {})).unwrap();
     assert_eq!(cat_of(&db, sid), (None, "NONE".into()));
 }
 

@@ -123,12 +123,12 @@ fn 졸업생은_다음_학년도_명단과_통계에_없다() {
         school_year: 2027,
         ..Default::default()
     };
-    let list27 = db.read(|c| student::list(c, &f, 100, 0)).unwrap();
+    let list27 = db.read(|c| student::list(c, &f, 100, 0, today())).unwrap();
     assert_eq!(list27.total, 1);
     assert_eq!(list27.rows[0].name, "올라간학생");
 
     let counts = db
-        .read(|c| stats::totals(c, &stats::StatFilter::year(2027)))
+        .read(|c| stats::totals(c, &stats::StatFilter::year(2027), today()))
         .unwrap();
     assert_eq!(counts.total, 1, "통계도 같은 수를 센다");
 
@@ -137,7 +137,7 @@ fn 졸업생은_다음_학년도_명단과_통계에_없다() {
         school_year: 2026,
         ..Default::default()
     };
-    assert_eq!(db.read(|c| student::list(c, &f26, 100, 0)).unwrap().total, 2);
+    assert_eq!(db.read(|c| student::list(c, &f26, 100, 0, today())).unwrap().total, 2);
 }
 
 // ---------------------------------------------------------------
@@ -160,7 +160,7 @@ fn 졸업을_되돌리면_그_학년도_명단으로_돌아온다() {
         school_year: 2026,
         ..Default::default()
     };
-    assert_eq!(db.read(|c| student::list(c, &f, 100, 0)).unwrap().total, 1);
+    assert_eq!(db.read(|c| student::list(c, &f, 100, 0, today())).unwrap().total, 1);
 }
 
 #[test]

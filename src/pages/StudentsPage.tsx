@@ -7,6 +7,7 @@ import {
   Download,
   ListFilter as FilterIcon,
   FileSpreadsheet,
+  Phone,
   Search,
   SlidersHorizontal,
   UserPlus,
@@ -19,6 +20,7 @@ import {
   Button,
   Empty,
   ErrorNotice,
+  Notice,
   Field,
   Input,
   Select,
@@ -26,6 +28,10 @@ import {
   tableClass,
   Page,
 } from '@/components/ui'
+import {
+  PrimaryFillDialog,
+  PrimaryPhoneCell,
+} from '@/features/student/PrimaryPhone'
 import { StudentDrawer } from '@/features/student/StudentDrawer'
 import { addressApi } from '@/ipc/address'
 import { issueApi } from '@/ipc/issue'
@@ -89,6 +95,9 @@ export function StudentsPage() {
 
   // 열려 있는 학생. undefined = 닫힘, null = 새 등록
   const [openStudent, setOpenStudent] = useState<number | null | undefined>(undefined)
+  /** 주보호자 연락처 일괄 설정 창 */
+  const [fillOpen, setFillOpen] = useState(false)
+  const [done, setDone] = useState<string | null>(null)
 
   const addressCats = useQuery({
     queryKey: ['address-categories', schoolYear],
@@ -146,6 +155,7 @@ export function StudentsPage() {
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['students'] })
+    qc.invalidateQueries({ queryKey: ['primary-fill'] })
     qc.invalidateQueries({ queryKey: ['class-options'] })
     qc.invalidateQueries({ queryKey: ['issue-summary'] })
     qc.invalidateQueries({ queryKey: ['issues'] })
@@ -212,6 +222,9 @@ export function StudentsPage() {
             onClick={() => nav('/export', { state: { filter } })}
           >
             내보내기
+          </Button>
+          <Button variant="outline" icon={Phone} onClick={() => setFillOpen(true)}>
+            주보호자 일괄 설정
           </Button>
           <Button variant="primary" icon={UserPlus} onClick={() => setOpenStudent(null)}>
             학생 등록
@@ -389,6 +402,12 @@ export function StudentsPage() {
         </div>
       </div>
 
+      {done && (
+        <div className={s.doneRow}>
+          <Notice tone="success">{done}</Notice>
+        </div>
+      )}
+
       {rows.length === 0 && !list.isFetching ? (
         <Empty
           icon={Users}
@@ -426,7 +445,7 @@ export function StudentsPage() {
               <th style={{ width: 92 }}>생년월일</th>
               <th>주소</th>
               <th style={{ width: 92 }}>주소 분류</th>
-              <th style={{ width: 130 }}>주보호자</th>
+              <th style={{ width: 164 }}>주보호자</th>
               <th style={{ width: 112 }}>본교 형제</th>
               <th style={{ width: 132 }}>상태</th>
             </tr>
@@ -461,7 +480,9 @@ export function StudentsPage() {
                   <td>
                     {r.addressCategory ?? <span className={tableClass.muted}>미분류</span>}
                   </td>
-                  <td>{r.primaryPhone ?? ''}</td>
+                  <td>
+                    <PrimaryPhoneCell row={r} />
+                  </td>
                   <td className={s.siblingCell}>
                     {r.sibling ? r.sibling.text : ''}
                   </td>
@@ -488,6 +509,20 @@ export function StudentsPage() {
           classSuggestions={suggestions}
           onClose={() => setOpenStudent(undefined)}
           onSaved={refresh}
+        />
+      )}
+
+      {fillOpen && filter && (
+        <PrimaryFillDialog
+          filter={filter}
+          filtered={total}
+          hasFilter={hasFilter}
+          onClose={() => setFillOpen(false)}
+          onDone={(msg) => {
+            setFillOpen(false)
+            setDone(msg)
+            refresh()
+          }}
         />
       )}
     </Page>

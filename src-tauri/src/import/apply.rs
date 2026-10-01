@@ -133,7 +133,7 @@ pub fn run(
 
     // 3) 형제 후보 — 줄마다 찾으면 같은 일을 1,200번 하게 되므로 다 넣은 뒤 한 번만 한다
     on_progress("SIBLING", "형제 후보 찾기", 0, 1);
-    let sib = crate::repo::sibling::scan(c, year, |_, _, _| {})?;
+    let sib = crate::repo::sibling::scan(c, year, today, |_, _, _| {})?;
     out.sibling_candidates = sib.new_candidates;
 
     // 관계가 걸린 학생만 표시를 다시 맞춘다 (전체를 다시 훑을 필요는 없다)

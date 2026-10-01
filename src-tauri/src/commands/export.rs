@@ -15,6 +15,7 @@ use crate::domain::export::{Column, Grouping};
 use crate::error::{AppError, AppResult};
 use crate::export::{self, preset, preset::Preset, ExportPlan, Warning};
 use crate::repo::{self, student::ListFilter};
+use super::today;
 use crate::AppState;
 
 /// 미리보기에 보여 줄 줄 수. 눈으로 확인할 만큼만 내려보낸다.
@@ -88,7 +89,7 @@ impl ExportRequest {
 }
 
 fn build_plan(state: &State<'_, AppState>, req: &ExportRequest) -> AppResult<ExportPlan> {
-    let rows = state.db.read(|c| repo::export::rows(c, &req.filter))?;
+    let rows = state.db.read(|c| repo::export::rows(c, &req.filter, today()))?;
     let year = req.filter.school_year;
 
     Ok(match req.preset {

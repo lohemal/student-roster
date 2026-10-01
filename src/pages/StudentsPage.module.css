@@ -128,3 +128,8 @@
   white-space: nowrap;
   color: var(--text-2);
 }
+
+/* 일괄 설정처럼 한 번에 여러 명을 바꾼 뒤 알리는 줄 */
+.doneRow {
+  margin-bottom: var(--sp-3);
+}

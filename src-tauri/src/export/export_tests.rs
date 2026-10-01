@@ -670,3 +670,51 @@ fn 천명짜리_파일도_금방_만든다() {
     );
     println!("1,000명 8개 열 내보내기: {elapsed:?}");
 }
+
+// ---------------------------------------------------------------
+// 주보호자를 모·부로 맞춘 뒤 (v0.1.3)
+// ---------------------------------------------------------------
+
+#[test]
+fn 주보호자를_모로_맞춰도_알림e가_그_번호를_낸다() {
+    // 일괄 설정 뒤의 모습 — 주보호자와 모 연락처가 같은 번호다
+    let mut r = row(1, 3, Some("나리"), Some(7), "가학생");
+    r.primary_phone = Some("010-1000-0002".into());
+    r.mother_phone = Some("010-1000-0002".into());
+
+    let plan = preset::alime(&[r], 2026, Grouping::All);
+    let sheets = round_trip(&plan, "alprimary");
+    assert_eq!(sheets[0].1[1][1], "010-1000-0002");
+    assert_eq!(plan.students, 1, "빠지는 학생이 없다");
+}
+
+#[test]
+fn 주보호자를_모로_맞춰도_학교종이_두_칸이_겹치지_않는다() {
+    let mut r = row(1, 3, Some("나리"), Some(7), "가학생");
+    r.primary_phone = Some("010-1000-0002".into());
+    r.mother_phone = Some("010-1000-0002".into());
+    r.father_phone = Some("010-1000-0003".into());
+
+    let plan = preset::schooljongi(&[r], 2026);
+    let table = round_trip(&plan, "sjprimary")[0].1.clone();
+    let line = &table[1];
+    assert_eq!(line[2], "010-1000-0002", "보호자휴대폰1 — 주보호자");
+    assert_eq!(
+        line[3], "010-1000-0003",
+        "보호자휴대폰2 — 1번에 쓰이지 않은 번호 (같은 번호를 두 칸에 적지 않는다)"
+    );
+}
+
+#[test]
+fn 부모_연락처가_하나뿐이면_학교종이_둘째_칸은_빈칸이다() {
+    // 주보호자 = 모 = 유일한 번호. 둘째 칸에 같은 번호를 또 적으면 두 번 발송된다.
+    let mut r = row(1, 3, Some("나리"), Some(7), "가학생");
+    r.primary_phone = Some("010-1000-0002".into());
+    r.mother_phone = Some("010-1000-0002".into());
+    r.father_phone = None;
+
+    let plan = preset::schooljongi(&[r], 2026);
+    let table = round_trip(&plan, "sjonly")[0].1.clone();
+    assert_eq!(table[1][2], "010-1000-0002");
+    assert_eq!(table[1][3], "", "겹치는 번호를 두 칸에 적지 않는다");
+}

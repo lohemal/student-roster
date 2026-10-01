@@ -7,6 +7,7 @@ pub mod address;
 pub mod birth;
 pub mod enroll;
 pub mod export;
+pub mod guardian;
 pub mod korean;
 pub mod label;
 pub mod phone;

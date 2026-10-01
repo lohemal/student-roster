@@ -15,6 +15,11 @@ import {
   tableClass,
 } from '@/components/ui'
 import { StudentDrawer } from '@/features/student/StudentDrawer'
+import {
+  CancelInButton,
+  PendingBadge,
+  RescheduleButton,
+} from '@/features/transfer/PendingMove'
 import { TransferDrawer } from '@/features/transfer/TransferDrawer'
 import { settingsApi } from '@/ipc/settings'
 import { studentApi } from '@/ipc/student'
@@ -142,7 +147,8 @@ export function TransferInPage() {
               <th style={{ width: 48 }} className={tableClass.center}>
                 성별
               </th>
-              <th style={{ width: 120 }}>상태</th>
+              <th style={{ width: 150 }}>상태</th>
+              <th style={{ width: 210 }} />
             </tr>
           </thead>
           <tbody>
@@ -158,12 +164,26 @@ export function TransferInPage() {
                 <td className={tableClass.num}>{r.classNo ?? ''}</td>
                 <td style={{ fontWeight: 600 }}>{r.name}</td>
                 <td className={tableClass.center}>{genderLabel(r.gender)}</td>
-                <td>
-                  <Badge tone="info">{r.statusLabel}</Badge>
-                  {r.issueCount > 0 && (
+                <td className={s.badgeCell}>
+                  {r.pending ? (
+                    <PendingBadge row={r} />
+                  ) : (
+                    <Badge tone="info">{r.statusLabel}</Badge>
+                  )}
+                  {r.issueCount > 0 && <Badge tone="warn">확인 {r.issueCount}</Badge>}
+                </td>
+                <td className={s.badgeCell}>
+                  {r.pending === 'IN' && (
                     <>
-                      {' '}
-                      <Badge tone="warn">확인 {r.issueCount}</Badge>
+                      <RescheduleButton row={r} schoolYear={schoolYear} onDone={refresh} />
+                      <CancelInButton
+                        row={r}
+                        schoolYear={schoolYear}
+                        onDone={(msg) => {
+                          setDone(msg)
+                          refresh()
+                        }}
+                      />
                     </>
                   )}
                 </td>
@@ -176,7 +196,8 @@ export function TransferInPage() {
       <div className={s.note}>
         <Notice tone="info">
           전입생은 <b>현재 재학생</b>이므로 학생명단에도 함께 나옵니다. 학교를 떠난 학생은
-          <b> 전출생</b> 화면에서 봅니다.
+          <b> 전출생</b> 화면에서 봅니다. <b>전입 예정</b>은 전입일이 되어야 학생명단·통계·
+          명단 파일에 들어갑니다 — 그날이 되면 저절로 바뀌므로 따로 누를 것이 없습니다.
         </Notice>
       </div>
 

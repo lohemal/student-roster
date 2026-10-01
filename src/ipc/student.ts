@@ -22,9 +22,38 @@ export interface StudentRow {
   fatherPhone: string | null
   motherPhone: string | null
   primaryPhone: string | null
+  /** 주보호자 연락처가 어디서 온 번호인가 (저장값이 아니라 볼 때마다 견준다) */
+  primarySource: PrimarySource
+  /** `모` / `부` / `모·부` / `기타`. 없으면 null */
+  primarySourceLabel: string | null
   issueCount: number
+  /** 아직 오지 않은 이동이면 `IN` / `OUT` */
+  pending: 'IN' | 'OUT' | null
+  /** `전입 예정 · 2026.10.05.` */
+  pendingLabel: string | null
   /** 본교 형제 — 없으면 null */
   sibling: SiblingBrief | null
+}
+
+/** 주보호자 연락처의 출처. 부·모 연락처와 견주어 가린다. */
+export type PrimarySource = 'MOTHER' | 'FATHER' | 'BOTH' | 'OTHER' | 'NONE'
+
+/** 주보호자 연락처 일괄 설정이 무슨 일을 하는가 */
+export interface PrimaryFillPlan {
+  /** `모 연락처` / `부 연락처` */
+  fromLabel: string
+  /** 조건에 든 학생 수 */
+  target: number
+  /** 주보호자 칸이 비어 있어 새로 채울 학생 */
+  fillEmpty: number
+  /** 다른 번호가 들어 있어 덮어쓸 학생 */
+  overwrite: number
+  /** 이미 같은 번호라 할 일이 없는 학생 */
+  already: number
+  /** 가져올 연락처가 없어 건드리지 않는 학생 */
+  missing: number
+  /** 실제로 바꾼 학생 수. 미리보기는 0 */
+  changed: number
 }
 
 export interface EnrollmentRow {
@@ -38,6 +67,8 @@ export interface EnrollmentRow {
   transferOutDate: string | null
   transferOutNote: string | null
   graduated: boolean
+  /** 아직 오지 않은 이동이면 `전입 예정 · 2026.10.05.` */
+  pendingLabel: string | null
 }
 
 export interface EventRow {
@@ -151,4 +182,11 @@ export const studentApi = {
   remove: (id: number) => invoke<void>('student_delete', { id, confirm: true }),
   classOptions: (schoolYear: number) =>
     invoke<ClassOption[]>('student_class_options', { schoolYear }),
+  /**
+   * 주보호자 연락처를 모·부 연락처로 한꺼번에 맞춘다.
+   *
+   * `apply = false` 로 먼저 세어 보여 주고, 사람이 정한 뒤 같은 조건으로 다시 부른다.
+   */
+  primaryFill: (filter: ListFilter, from: 'MOTHER' | 'FATHER', apply: boolean) =>
+    invoke<PrimaryFillPlan>('student_primary_fill', { input: { filter, from, apply } }),
 }

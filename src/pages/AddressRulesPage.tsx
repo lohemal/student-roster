@@ -9,6 +9,7 @@ import {
   Empty,
   ErrorNotice,
   Field,
+  FieldAction,
   Input,
   Notice,
   Page,
@@ -332,9 +333,11 @@ export function AddressRulesPage() {
                   maxLength={30}
                 />
               </Field>
-              <Button icon={Plus} onClick={() => createCat.mutate()} disabled={!newCat.trim()}>
-                추가
-              </Button>
+              <FieldAction>
+                <Button icon={Plus} onClick={() => createCat.mutate()} disabled={!newCat.trim()}>
+                  추가
+                </Button>
+              </FieldAction>
             </div>
 
             <Notice tone="info">

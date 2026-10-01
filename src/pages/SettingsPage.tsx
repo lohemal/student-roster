@@ -2,7 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, RefreshCw, Users } from 'lucide-react'
 
-import { Badge, Button, Card, ErrorNotice, Field, Input, Notice, Page } from '@/components/ui'
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorNotice,
+  Field,
+  FieldAction,
+  Input,
+  Notice,
+  Page,
+} from '@/components/ui'
 import { DataCard } from '@/features/system/DataCard'
 import { UpdateCard } from '@/features/system/UpdateCard'
 import { watchJob, type JobProgress } from '@/ipc/import'
@@ -174,13 +184,15 @@ export function SettingsPage() {
                   onChange={(e) => setNewYear(e.target.value)}
                 />
               </Field>
-              <Button
-                icon={Plus}
-                onClick={() => createYear.mutate(Number(newYear))}
-                disabled={createYear.isPending || !/^\d{4}$/.test(newYear)}
-              >
-                추가
-              </Button>
+              <FieldAction>
+                <Button
+                  icon={Plus}
+                  onClick={() => createYear.mutate(Number(newYear))}
+                  disabled={createYear.isPending || !/^\d{4}$/.test(newYear)}
+                >
+                  추가
+                </Button>
+              </FieldAction>
             </div>
             <ErrorNotice error={createYear.error ?? setCurrent.error} />
           </div>

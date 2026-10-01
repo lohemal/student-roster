@@ -81,7 +81,7 @@ fn filter() -> ListFilter {
 }
 
 fn get(db: &Db, f: &ListFilter) -> Vec<Row> {
-    db.read(|c| rows(c, f)).unwrap()
+    db.read(|c| rows(c, f, today())).unwrap()
 }
 
 fn names(rows: &[Row]) -> Vec<String> {
@@ -90,7 +90,7 @@ fn names(rows: &[Row]) -> Vec<String> {
 
 /// 학생명단 화면이 보는 것과 같은 조건으로 읽은 이름.
 fn roster_names(db: &Db, f: &ListFilter) -> Vec<String> {
-    db.read(|c| student::list(c, f, 1000, 0))
+    db.read(|c| student::list(c, f, 1000, 0, today()))
         .unwrap()
         .rows
         .into_iter()
@@ -314,7 +314,7 @@ fn confirm_all(db: &Db, student_id: i64) {
 }
 
 fn scan(db: &Db) {
-    db.write(|c| sib::scan(c, 2026, |_, _, _| {})).unwrap();
+    db.write(|c| sib::scan(c, 2026, today(), |_, _, _| {})).unwrap();
 }
 
 #[test]

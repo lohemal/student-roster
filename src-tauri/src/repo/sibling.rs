@@ -17,7 +17,7 @@ use serde::Serialize;
 
 use crate::domain::label;
 use crate::domain::sibling::{self, Comparison, Entry, Field, Guardians};
-use crate::domain::enroll::{self, ACTIVE_STATUS_SQL as ACTIVE};
+use crate::domain::enroll;
 use crate::error::{AppError, AppResult};
 
 // ---------------------------------------------------------------
@@ -28,12 +28,22 @@ use crate::error::{AppError, AppResult};
 ///
 /// 전출·졸업한 학생은 훑기에서 뺀다. 관계 자체는 학생 번호로 남으므로
 /// 지난 기록은 그대로 볼 수 있다.
-pub fn active_entries(c: &Connection, school_year: i32) -> AppResult<Vec<Entry>> {
+///
+/// **아직 오지 않은 전입생은 넣는다**(`enrolled_sql`). 후보 판정은 '오늘 교실에
+/// 있는가' 가 아니라 '이 학년도 명단에 이름이 있는가' 이고, 빼 두면 그 학생이 오는
+/// 날 아무도 다시 훑어 주지 않아 후보가 영영 생기지 않는다. '본교 형제 수' 에
+/// 드는지는 `together_now` 가 따로 가린다.
+pub fn active_entries(
+    c: &Connection,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Vec<Entry>> {
+    let active = enroll::enrolled_sql("e.", asof);
     let mut st = c.prepare(&format!(
         "SELECT s.id, s.father_name, s.mother_name, s.father_phone, s.mother_phone
            FROM students s
            JOIN enrollments e ON e.student_id = s.id
-          WHERE e.school_year = ?1 AND e.{ACTIVE}
+          WHERE e.school_year = ?1 AND {active}
             AND NOT EXISTS (SELECT 1 FROM graduations g WHERE g.student_id = s.id)
           ORDER BY s.id",
     ))?;
@@ -225,6 +235,7 @@ pub fn list_for_student(
     c: &Connection,
     student_id: i64,
     school_year: i32,
+    asof: NaiveDate,
 ) -> AppResult<Vec<SiblingView>> {
     let mine = guardians_of(c, student_id)?;
     let mut out = Vec::new();
@@ -264,7 +275,7 @@ pub fn list_for_student(
             } else {
                 Vec::new()
             },
-            partner_note: partner_note(c, other, school_year)?,
+            partner_note: partner_note(c, other, school_year, asof)?,
             status: link.status,
             found_at,
             decided_at,
@@ -293,27 +304,44 @@ pub struct SiblingBrief {
 ///
 /// 형제가 전출했거나 지난 학년도 학생이면 표시를 달리해야 한다 — 관계는 그대로
 /// 두되 **지금 본교에 함께 다니는 것은 아니라는 사실**을 알려 주기 위해서다.
-fn status_in_year(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Option<String>> {
+type Seat = (String, Option<String>, Option<String>);
+
+fn seat_in_year(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Option<Seat>> {
     Ok(c.query_row(
-        "SELECT status FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
+        "SELECT status, transfer_in_date, transfer_out_date
+           FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
         params![student_id, school_year],
-        |r| r.get(0),
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
     )
     .optional()?)
 }
 
-/// 지금 본교에 함께 다니는 형제인가.
-fn together_now(c: &Connection, student_id: i64, school_year: i32) -> AppResult<bool> {
-    Ok(status_in_year(c, student_id, school_year)?
-        .and_then(|s| enroll::Status::parse(&s))
-        .map(|s| s.is_active())
+/// 기준일에 본교에 함께 다니는 형제인가.
+///
+/// 상태만 보지 않는다 — 전입 예정 형제는 아직 세지 않고, 전출 예정 형제는
+/// 그날까지 센다. 명단·통계와 같은 `enroll::active_on` 을 쓴다.
+fn together_now(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<bool> {
+    Ok(seat_in_year(c, student_id, school_year)?
+        .map(|(status, in_date, out_date)| {
+            enroll::active_on(&status, in_date.as_deref(), out_date.as_deref(), asof)
+        })
         .unwrap_or(false))
 }
 
 /// 형제 이름표 뒤에 붙일 말. 함께 다니고 있으면 None.
 /// 졸업을 먼저 본다 — 졸업생은 그 뒤 학년도에 학적이 없으므로 그냥 두면
 /// '지난 학년도' 로 보인다. 왜 함께 다니지 않는지를 바로 말해야 한다.
-fn partner_note(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Option<String>> {
+fn partner_note(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Option<String>> {
     let graduated: i64 = c.query_row(
         "SELECT COUNT(*) FROM graduations WHERE student_id = ?1 AND school_year <= ?2",
         params![student_id, school_year],
@@ -322,19 +350,31 @@ fn partner_note(c: &Connection, student_id: i64, school_year: i32) -> AppResult<
     if graduated > 0 {
         return Ok(Some("졸업".into()));
     }
-    Ok(match status_in_year(c, student_id, school_year)? {
-        Some(s) if s == "TRANSFER_OUT" => Some("전출".into()),
-        Some(_) => None,
+    Ok(match seat_in_year(c, student_id, school_year)? {
         None => Some("지난 학년도".into()),
+        Some((status, in_date, out_date)) => {
+            // 아직 오지 않은 이동은 '예정' 으로 알린다 — 지금은 함께 다니는지
+            // 아닌지가 오늘 기준으로 갈리기 때문이다
+            match enroll::pending_on(&status, in_date.as_deref(), out_date.as_deref(), asof) {
+                Some(p) => Some(p.label().to_string()),
+                None if status == "TRANSFER_OUT" => Some("전출".into()),
+                None => None,
+            }
+        }
     })
 }
 
-pub fn brief(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Option<SiblingBrief>> {
+pub fn brief(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Option<SiblingBrief>> {
     // **지금 함께 다니는** 형제만 센다. 전출한 형제는 관계가 남아 있어도
     // '본교 형제' 수에는 들지 않는다 — 명단의 숫자는 현재를 말해야 한다.
     let mut partners = Vec::new();
     for p in confirmed_partners(c, student_id)? {
-        if together_now(c, p, school_year)? {
+        if together_now(c, p, school_year, asof)? {
             partners.push(p);
         }
     }
@@ -535,9 +575,10 @@ fn save_fields(c: &Connection, link_id: i64, cmp: &Comparison) -> AppResult<()> 
 pub fn scan(
     c: &Connection,
     school_year: i32,
+    asof: NaiveDate,
     mut on_progress: impl FnMut(&str, usize, usize),
 ) -> AppResult<ScanResult> {
-    let entries = active_entries(c, school_year)?;
+    let entries = active_entries(c, school_year, asof)?;
     let mut out = ScanResult {
         scanned: entries.len() as i64,
         ..Default::default()
@@ -648,7 +689,7 @@ pub fn scan_for_student(
     student_id: i64,
     today: NaiveDate,
 ) -> AppResult<i64> {
-    let entries = active_entries(c, school_year)?;
+    let entries = active_entries(c, school_year, today)?;
     if !entries.iter().any(|e| e.student_id == student_id) {
         return Ok(0); // 지금 다니지 않는 학생이면 찾을 것이 없다
     }
@@ -700,10 +741,15 @@ pub fn scan_for_student(
 ///
 /// 내보내기가 쓴다. 전출했거나 지난 학년도 형제는 넣지 않는다 — 명단에 적힌
 /// '본교 형제' 는 지금 같이 다니는 학생을 뜻해야 한다.
-pub fn labels_of(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Vec<String>> {
+pub fn labels_of(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Vec<String>> {
     let mut out = Vec::new();
     for p in confirmed_partners(c, student_id)? {
-        if together_now(c, p, school_year)? {
+        if together_now(c, p, school_year, asof)? {
             out.push(student_label_of(c, p, school_year)?);
         }
     }
@@ -738,7 +784,12 @@ pub struct CandidateRow {
 ///
 /// 목록 화면과 **같은 것**을 보여야 하므로, 열려 있는 `SIBLING_CANDIDATE` 표시가
 /// 걸린 관계만 고른다. 전출·졸업해서 표시가 닫힌 관계는 여기에도 나오지 않는다.
-pub fn candidates(c: &Connection, school_year: i32) -> AppResult<Vec<CandidateRow>> {
+pub fn candidates(
+    c: &Connection,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Vec<CandidateRow>> {
+    let active = enroll::active_sql("e2.", asof);
     let sql = format!(
         "SELECT l.id, l.student_a, l.student_b, l.matched_fields, l.conflict_fields, l.created_at
            FROM sibling_links l
@@ -752,7 +803,7 @@ pub fn candidates(c: &Connection, school_year: i32) -> AppResult<Vec<CandidateRo
                  WHERE i.ref_id = l.id
                    AND i.kind = 'SIBLING_CANDIDATE'
                    AND i.status = 'OPEN'
-                   AND e2.{ACTIVE})
+                   AND {active})
           ORDER BY {order}, l.id",
         order = label::ORDER_BY_ROSTER,
     );

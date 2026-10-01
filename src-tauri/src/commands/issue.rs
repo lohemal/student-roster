@@ -5,6 +5,7 @@ use tauri::State;
 
 use crate::error::AppResult;
 use crate::repo::{self, issue::IssueCount};
+use super::today;
 use crate::AppState;
 
 #[derive(Debug, Serialize)]
@@ -17,7 +18,7 @@ pub struct IssueSummary {
 /// 종류별 열린 개수. 사이드바 뱃지와 '확인 필요' 화면이 함께 쓴다.
 #[tauri::command]
 pub fn issue_summary(state: State<'_, AppState>, school_year: i32) -> AppResult<IssueSummary> {
-    let by_kind = state.db.read(|c| repo::issue::summary(c, school_year))?;
+    let by_kind = state.db.read(|c| repo::issue::summary(c, school_year, today()))?;
     Ok(IssueSummary {
         total: by_kind.iter().map(|k| k.count).sum(),
         by_kind,
@@ -56,5 +57,5 @@ pub fn issue_list(
     let limit = limit.clamp(1, 500);
     state
         .db
-        .read(|c| repo::issue::list(c, &filter, limit, offset.max(0)))
+        .read(|c| repo::issue::list(c, &filter, limit, offset.max(0), today()))
 }

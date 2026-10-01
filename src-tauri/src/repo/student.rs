@@ -10,8 +10,8 @@ use chrono::NaiveDate;
 use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
-use crate::domain::{address, birth, korean, label, phone, sibling};
+use crate::domain::enroll;
+use crate::domain::{address, birth, guardian, korean, label, phone, sibling};
 use crate::repo::address as addr_repo;
 use crate::repo::sibling as sibling_repo;
 use crate::repo::stats;
@@ -108,7 +108,16 @@ pub struct StudentRow {
     pub father_phone: Option<String>,
     pub mother_phone: Option<String>,
     pub primary_phone: Option<String>,
+    /// 주보호자 연락처가 어디서 온 번호인가 — `MOTHER`/`FATHER`/`BOTH`/`OTHER`/`NONE`.
+    /// 저장된 값이 아니라 부·모 연락처와 견주어 **볼 때마다** 가린다.
+    pub primary_source: String,
+    /// `모` / `부` / `모·부` / `기타`. 없으면 None
+    pub primary_source_label: Option<String>,
     pub issue_count: i64,
+    /// 아직 오지 않은 이동이면 `IN`/`OUT`
+    pub pending: Option<String>,
+    /// `전입 예정 · 2026.10.05.`
+    pub pending_label: Option<String>,
     /// 확정된 본교 형제. 없으면 None
     pub sibling: Option<sibling_repo::SiblingBrief>,
 }
@@ -154,6 +163,8 @@ pub struct EnrollmentRow {
     pub transfer_out_date: Option<String>,
     pub transfer_out_note: Option<String>,
     pub graduated: bool,
+    /// 아직 오지 않은 이동이면 `전입 예정 · 2026.10.05.`
+    pub pending_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -648,13 +659,29 @@ pub fn sync_issues(
     )?;
 
     // --- 반·번호 미정 ---
-    let (grade, class_name, class_no, status): (i32, Option<String>, Option<i32>, String) = c
-        .query_row(
-            "SELECT grade, class_name, class_no, status
-               FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
-            params![student_id, school_year],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-        )?;
+    #[allow(clippy::type_complexity)]
+    let (grade, class_name, class_no, status, in_date, out_date): (
+        i32,
+        Option<String>,
+        Option<i32>,
+        String,
+        Option<String>,
+        Option<String>,
+    ) = c.query_row(
+        "SELECT grade, class_name, class_no, status, transfer_in_date, transfer_out_date
+           FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
+        params![student_id, school_year],
+        |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+            ))
+        },
+    )?;
     let mut unset: Vec<&str> = Vec::new();
     if class_name.as_deref().map(str::trim).unwrap_or("").is_empty() {
         unset.push("반");
@@ -678,15 +705,19 @@ pub fn sync_issues(
     //
     // 번호에는 UNIQUE 제약을 걸지 않는다(걸면 엑셀 가져오기와 학기 초 정리가 막힌다).
     // 대신 겹치면 여기에 표시하고, 자동 번호 재정렬은 이 표시가 있는 반에서 멈춘다.
-    let active = status != "TRANSFER_OUT";
+    //
+    // 자리를 차지하는 기준은 **그날 다니는가**다. 전출 예정 학생은 아직 그 번호를
+    // 쓰고 있고, 전입 예정 학생은 아직 쓰지 않는다.
+    let here_today = enroll::active_on(&status, in_date.as_deref(), out_date.as_deref(), today);
+    let active = enroll::active_sql("", today);
     let dup_count: i64 = match class_no {
-        Some(no) if active => c.query_row(
+        Some(no) if here_today => c.query_row(
             &format!(
             "SELECT COUNT(*) FROM enrollments
               WHERE school_year = ?1 AND grade = ?2
                 AND ((class_name IS NULL AND ?3 IS NULL) OR class_name = ?3)
                 AND class_no = ?4
-                AND {ACTIVE}"
+                AND {active}"
             ),
             params![school_year, grade, class_name, no],
             |r| r.get(0),
@@ -965,12 +996,12 @@ const PHONE_MIN: usize = 3;
 
 /// 내보내기도 **같은 조건**으로 학생을 뽑는다. 명단에서 48명이 보였는데 파일에
 /// 47명이 들어 있으면 둘 다 못 쓴다.
-pub fn build_where_pub(f: &ListFilter) -> (Vec<String>, Vec<Value>) {
-    let w = build_where(f);
+pub fn build_where_pub(f: &ListFilter, asof: NaiveDate) -> (Vec<String>, Vec<Value>) {
+    let w = build_where(f, asof);
     (w.sql, w.args)
 }
 
-fn build_where(f: &ListFilter) -> Where {
+fn build_where(f: &ListFilter, asof: NaiveDate) -> Where {
     let mut w = Where {
         sql: vec!["e.school_year = ?".into()],
         args: vec![Value::Integer(f.school_year as i64)],
@@ -978,7 +1009,7 @@ fn build_where(f: &ListFilter) -> Where {
 
     match f.status.as_deref().unwrap_or("ACTIVE") {
         "ALL" => {}
-        "ACTIVE" => w.sql.push(format!("e.{ACTIVE}")),
+        "ACTIVE" => w.sql.push(enroll::active_sql("e.", asof)),
         other => w.push("e.status = ?", Value::Text(other.to_string())),
     }
 
@@ -1079,15 +1110,36 @@ const SELECT_ROW: &str = "
            s.father_phone, s.mother_phone, s.primary_phone,
            (SELECT COUNT(*) FROM issues i WHERE i.student_id = s.id AND i.status = 'OPEN'),
            (SELECT COUNT(*) FROM graduations g
-             WHERE g.student_id = s.id AND g.school_year = e.school_year)
+             WHERE g.student_id = s.id AND g.school_year = e.school_year),
+           s.mother_phone_digits, s.father_phone_digits, s.primary_phone_digits,
+           e.transfer_in_date, e.transfer_out_date
       FROM enrollments e
       JOIN students s ON s.id = e.student_id
       LEFT JOIN address_categories ac ON ac.id = s.address_category_id";
 
-fn map_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<StudentRow> {
+fn map_row(r: &rusqlite::Row<'_>, asof: NaiveDate) -> rusqlite::Result<StudentRow> {
     let grade: i32 = r.get(5)?;
     let class_name: Option<String> = r.get(6)?;
+    let status: String = r.get(8)?;
+    let mother_digits: Option<String> = r.get(16)?;
+    let father_digits: Option<String> = r.get(17)?;
+    let primary_digits: Option<String> = r.get(18)?;
+    let in_date: Option<String> = r.get(19)?;
+    let out_date: Option<String> = r.get(20)?;
+
+    let src = guardian::source(
+        primary_digits.as_deref(),
+        mother_digits.as_deref(),
+        father_digits.as_deref(),
+    );
+    let pending = enroll::pending_on(&status, in_date.as_deref(), out_date.as_deref(), asof);
+
     Ok(StudentRow {
+        primary_source: src.code().to_string(),
+        primary_source_label: src.label().map(str::to_string),
+        pending: pending.map(|p| p.code().to_string()),
+        pending_label: pending
+            .map(|p| format!("{} · {}", p.label(), enroll::format_date(p.date()))),
         id: r.get(0)?,
         name: r.get(1)?,
         gender: r.get(2)?,
@@ -1115,9 +1167,114 @@ pub struct ListPage {
     pub total: i64,
 }
 
+// ---------------------------------------------------------------
+// 주보호자 연락처 한꺼번에 설정하기
+// ---------------------------------------------------------------
+
+/// 일괄 설정이 **무슨 일을 하게 되는지**. 미리보기와 실행이 같은 값을 돌려준다.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrimaryFillPlan {
+    /// 무엇으로 맞추는지 — `모 연락처` / `부 연락처`
+    pub from_label: String,
+    /// 조건에 든 학생 수
+    pub target: i64,
+    /// 주보호자 칸이 비어 있어 새로 채울 학생
+    pub fill_empty: i64,
+    /// 다른 번호가 들어 있어 **덮어쓸** 학생
+    pub overwrite: i64,
+    /// 이미 같은 번호라 할 일이 없는 학생
+    pub already: i64,
+    /// 가져올 연락처가 없어 **건드리지 않는** 학생
+    pub missing: i64,
+    /// 실제로 바꾼 학생 수. 미리보기일 때는 0
+    pub changed: i64,
+}
+
+impl PrimaryFillPlan {
+    /// 바뀌게 될 학생 수. 화면은 두 값을 따로 보여 주므로 검사에서만 쓴다.
+    #[cfg(test)]
+    pub fn will_change(&self) -> i64 {
+        self.fill_empty + self.overwrite
+    }
+}
+
+/// 조건에 든 학생의 주보호자 연락처를 모·부 연락처로 맞춘다.
+///
+/// 지키는 것
+///   * **가져올 연락처가 없는 학생은 건드리지 않는다.** 빈 값으로 덮어쓰면 그 학생은
+///     문자 명단에서 조용히 빠진다.
+///   * 덮어쓰는 일이므로 `apply = false` 로 **먼저 세어 보여 주고** 사람이 정한다.
+///     미리보기와 실행이 같은 조건·같은 함수를 지나므로 숫자가 어긋나지 않는다.
+///   * 대상은 학생명단과 **같은 `ListFilter`** 다. 화면에 보이던 인원과 다른 수가
+///     바뀌면 둘 다 못 쓴다.
+pub fn primary_fill(
+    c: &Connection,
+    f: &ListFilter,
+    from: guardian::FillFrom,
+    apply: bool,
+    asof: NaiveDate,
+) -> AppResult<PrimaryFillPlan> {
+    let w = build_where(f, asof);
+    let where_sql = w.sql.join(" AND ");
+    let (display_col, digits_col) = from.columns();
+
+    let sql = format!(
+        "SELECT s.id, s.{display_col}, s.{digits_col}, s.primary_phone_digits
+           FROM enrollments e
+           JOIN students s ON s.id = e.student_id
+          WHERE {where_sql}"
+    );
+    let mut st = c.prepare(&sql)?;
+    let rows: Vec<(i64, Option<String>, Option<String>, Option<String>)> = st
+        .query_map(params_from_iter(w.args.iter()), |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(st);
+
+    let mut out = PrimaryFillPlan {
+        from_label: from.label().to_string(),
+        target: rows.len() as i64,
+        ..Default::default()
+    };
+
+    for (id, display, digits, primary_digits) in rows {
+        match guardian::outcome(digits.as_deref(), primary_digits.as_deref()) {
+            guardian::Outcome::Missing => out.missing += 1,
+            guardian::Outcome::Already => out.already += 1,
+            kind => {
+                if kind == guardian::Outcome::FillEmpty {
+                    out.fill_empty += 1;
+                } else {
+                    out.overwrite += 1;
+                }
+                if apply {
+                    // 표시용 값도 함께 옮긴다 — 숫자만 맞고 보이는 글자가 다르면 헷갈린다
+                    c.execute(
+                        "UPDATE students
+                            SET primary_phone = ?2, primary_phone_digits = ?3,
+                                updated_at = datetime('now','localtime')
+                          WHERE id = ?1",
+                        params![id, display, digits],
+                    )?;
+                    out.changed += 1;
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// 학생명단. 기본 정렬은 학년 → 반 → 번호 → 이름.
-pub fn list(c: &Connection, f: &ListFilter, limit: i64, offset: i64) -> AppResult<ListPage> {
-    let w = build_where(f);
+pub fn list(
+    c: &Connection,
+    f: &ListFilter,
+    limit: i64,
+    offset: i64,
+    asof: NaiveDate,
+) -> AppResult<ListPage> {
+    let w = build_where(f, asof);
     let where_sql = w.sql.join(" AND ");
 
     let total: i64 = c.query_row(
@@ -1140,20 +1297,25 @@ pub fn list(c: &Connection, f: &ListFilter, limit: i64, offset: i64) -> AppResul
 
     let mut st = c.prepare(&sql)?;
     let mut rows = st
-        .query_map(params_from_iter(args.iter()), map_row)?
+        .query_map(params_from_iter(args.iter()), |r| map_row(r, asof))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     drop(st);
 
     // 형제 이름표는 저장해 두지 않는다 — 진급하면 바뀌어야 하므로 볼 때마다 만든다
     for row in rows.iter_mut() {
-        row.sibling = sibling_repo::brief(c, row.id, f.school_year)?;
+        row.sibling = sibling_repo::brief(c, row.id, f.school_year, asof)?;
     }
 
     Ok(ListPage { rows, total })
 }
 
 /// 학생 한 명의 모든 것 — Drawer 가 쓴다.
-pub fn detail(c: &Connection, student_id: i64, school_year: i32) -> AppResult<StudentDetail> {
+pub fn detail(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<StudentDetail> {
     let mut d = c
         .query_row(
             "SELECT s.id, s.name, s.gender, s.birth_raw, s.birth_date,
@@ -1194,7 +1356,7 @@ pub fn detail(c: &Connection, student_id: i64, school_year: i32) -> AppResult<St
         .optional()?
         .ok_or_else(|| AppError::not_found("학생을 찾을 수 없습니다."))?;
 
-    d.enrollments = enrollments_of(c, student_id)?;
+    d.enrollments = enrollments_of(c, student_id, asof)?;
     d.enrollment = d
         .enrollments
         .iter()
@@ -1205,7 +1367,11 @@ pub fn detail(c: &Connection, student_id: i64, school_year: i32) -> AppResult<St
     Ok(d)
 }
 
-pub fn enrollments_of(c: &Connection, student_id: i64) -> AppResult<Vec<EnrollmentRow>> {
+pub fn enrollments_of(
+    c: &Connection,
+    student_id: i64,
+    asof: NaiveDate,
+) -> AppResult<Vec<EnrollmentRow>> {
     let mut st = c.prepare(
         "SELECT e.school_year, e.grade, e.class_name, e.class_no, e.status,
                 e.transfer_in_date, e.transfer_out_date, e.transfer_out_note,
@@ -1219,15 +1385,22 @@ pub fn enrollments_of(c: &Connection, student_id: i64) -> AppResult<Vec<Enrollme
         .query_map([student_id], |r| {
             let grade: i32 = r.get(1)?;
             let class_name: Option<String> = r.get(2)?;
+            let status: String = r.get(4)?;
+            let in_date: Option<String> = r.get(5)?;
+            let out_date: Option<String> = r.get(6)?;
+            let pending =
+                enroll::pending_on(&status, in_date.as_deref(), out_date.as_deref(), asof);
             Ok(EnrollmentRow {
+                pending_label: pending
+                    .map(|p| format!("{} · {}", p.label(), enroll::format_date(p.date()))),
                 school_year: r.get(0)?,
                 class_label: label::class_label(grade, class_name.as_deref()),
                 grade,
                 class_name,
                 class_no: r.get(3)?,
-                status: r.get(4)?,
-                transfer_in_date: r.get(5)?,
-                transfer_out_date: r.get(6)?,
+                status,
+                transfer_in_date: in_date,
+                transfer_out_date: out_date,
                 transfer_out_note: r.get(7)?,
                 graduated: r.get::<_, i64>(8)? > 0,
             })
@@ -1273,13 +1446,18 @@ pub struct ClassOption {
 }
 
 /// 그 학년도에 실제로 있는 학년·반 목록. 검색 칸의 선택지로 쓴다.
-pub fn class_options(c: &Connection, school_year: i32) -> AppResult<Vec<ClassOption>> {
+pub fn class_options(
+    c: &Connection,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Vec<ClassOption>> {
+    let active = enroll::active_sql("e.", asof);
     let mut st = c.prepare(&format!(
         "SELECT e.grade, e.class_name, COUNT(*)
            FROM enrollments e
           WHERE e.school_year = ?1
             AND e.class_name IS NOT NULL AND TRIM(e.class_name) <> ''
-            AND e.{ACTIVE}
+            AND {active}
           GROUP BY e.grade, e.class_name",
     ))?;
     let mut rows: Vec<ClassOption> = st

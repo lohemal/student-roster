@@ -7,7 +7,7 @@
 use chrono::NaiveDate;
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
+use crate::domain::enroll;
 use crate::domain::label;
 use crate::domain::transition::{self, Seat};
 use crate::error::{AppError, AppResult};
@@ -55,13 +55,14 @@ impl SeatRow {
 ///
 /// 지금 전출 상태인 학생은 들어오지 않는다. 나갔다가 돌아와 지금 다니는 학생은
 /// 들어온다. 기준은 명단·통계와 같은 `ACTIVE_STATUS_SQL` 하나다.
-pub fn seats(c: &Connection, from_year: i32) -> AppResult<Vec<SeatRow>> {
+pub fn seats(c: &Connection, from_year: i32, asof: NaiveDate) -> AppResult<Vec<SeatRow>> {
+    let active = enroll::active_sql("e.", asof);
     let sql = format!(
         "SELECT e.student_id, s.name, s.gender, s.birth_date,
                 e.grade, e.class_name, e.class_no, e.status
            FROM enrollments e
            JOIN students s ON s.id = e.student_id
-          WHERE e.school_year = ?1 AND e.{ACTIVE}
+          WHERE e.school_year = ?1 AND {active}
             AND NOT EXISTS (SELECT 1 FROM graduations g WHERE g.student_id = s.id)
           ORDER BY {order}",
         order = label::ORDER_BY_ROSTER,
@@ -85,8 +86,8 @@ pub fn seats(c: &Connection, from_year: i32) -> AppResult<Vec<SeatRow>> {
 }
 
 /// 원본 학년도의 지금 상태. 미리보기를 만든 뒤 달라졌는지 보는 데 쓴다.
-pub fn state_key(c: &Connection, from_year: i32) -> AppResult<String> {
-    let seats: Vec<Seat> = seats(c, from_year)?.iter().map(SeatRow::seat).collect();
+pub fn state_key(c: &Connection, from_year: i32, asof: NaiveDate) -> AppResult<String> {
+    let seats: Vec<Seat> = seats(c, from_year, asof)?.iter().map(SeatRow::seat).collect();
     Ok(transition::state_key(&seats))
 }
 
@@ -106,7 +107,8 @@ pub struct YearState {
     pub active: i64,
 }
 
-pub fn year_state(c: &Connection, year: i32) -> AppResult<YearState> {
+pub fn year_state(c: &Connection, year: i32, asof: NaiveDate) -> AppResult<YearState> {
+    let active = enroll::active_sql("", asof);
     let exists: i64 = c.query_row(
         "SELECT COUNT(*) FROM school_years WHERE year = ?1",
         [year],
@@ -118,7 +120,7 @@ pub fn year_state(c: &Connection, year: i32) -> AppResult<YearState> {
         |r| r.get(0),
     )?;
     let active: i64 = c.query_row(
-        &format!("SELECT COUNT(*) FROM enrollments WHERE school_year = ?1 AND {ACTIVE}"),
+        &format!("SELECT COUNT(*) FROM enrollments WHERE school_year = ?1 AND {active}"),
         [year],
         |r| r.get(0),
     )?;

@@ -77,7 +77,7 @@ fn no_of(db: &Db, student_id: i64) -> Option<i32> {
 }
 
 fn see(db: &Db, student_id: i64, new_no: i32) -> Preview {
-    db.read(|c| preview(c, student_id, 2026, new_no)).unwrap()
+    db.read(|c| preview(c, student_id, 2026, new_no, today())).unwrap()
 }
 
 /// 미리보기를 받아 그대로 적용한다 — 화면이 하는 일과 같은 차례.
@@ -352,6 +352,7 @@ fn 실패하면_한_명도_바뀌지_않는다() {
                     grade: 3,
                     class_name: Some("나리".into()),
                 },
+                today(),
             )?));
             apply(c, ids[9], 2026, 1, &key, today())?;
             Err(AppError::internal("일부러 낸 오류"))

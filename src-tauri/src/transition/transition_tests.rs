@@ -637,7 +637,7 @@ fn 형제_관계는_진급_뒤에도_이어지고_이름표만_바뀐다() {
     let db = db();
     let big = add_with(&db, "첫째", 5, "가람", 1, "M", "남궁바다", "제갈하늘");
     let small = add_with(&db, "둘째", 3, "나리", 2, "F", "남궁바다", "제갈하늘");
-    db.write(|c| sibling::scan(c, FROM, |_, _, _| {})).unwrap();
+    db.write(|c| sibling::scan(c, FROM, today(), |_, _, _| {})).unwrap();
     let link = db.read(|c| sibling::links_of(c, big)).unwrap()[0].id;
     db.write(|c| {
         sibling::confirm(c, link)?;
@@ -646,7 +646,7 @@ fn 형제_관계는_진급_뒤에도_이어지고_이름표만_바뀐다() {
     .unwrap();
 
     assert_eq!(
-        db.read(|c| sibling::labels_of(c, big, FROM)).unwrap(),
+        db.read(|c| sibling::labels_of(c, big, FROM, today())).unwrap(),
         vec!["3-나리 둘째"]
     );
 
@@ -657,7 +657,7 @@ fn 형제_관계는_진급_뒤에도_이어지고_이름표만_바뀐다() {
     run(&db, &plan_of(&db, Some(&assigns), &[]));
 
     assert_eq!(
-        db.read(|c| sibling::labels_of(c, big, TO)).unwrap(),
+        db.read(|c| sibling::labels_of(c, big, TO, today())).unwrap(),
         vec!["4-가람 둘째"],
         "이름표는 그 학년도 학적으로 다시 만든다"
     );
@@ -668,7 +668,7 @@ fn 졸업한_형제는_다음_학년도_본교_형제에서_빠진다() {
     let db = db();
     let big = add_with(&db, "첫째", 6, "가람", 1, "M", "남궁바다", "제갈하늘");
     let small = add_with(&db, "둘째", 3, "나리", 2, "F", "남궁바다", "제갈하늘");
-    db.write(|c| sibling::scan(c, FROM, |_, _, _| {})).unwrap();
+    db.write(|c| sibling::scan(c, FROM, today(), |_, _, _| {})).unwrap();
     let link = db.read(|c| sibling::links_of(c, big)).unwrap()[0].id;
     db.write(|c| {
         sibling::confirm(c, link)?;
@@ -680,14 +680,14 @@ fn 졸업한_형제는_다음_학년도_본교_형제에서_빠진다() {
     run(&db, &plan_of(&db, Some(&assigns), &[]));
 
     assert!(
-        db.read(|c| sibling::labels_of(c, small, TO)).unwrap().is_empty(),
+        db.read(|c| sibling::labels_of(c, small, TO, today())).unwrap().is_empty(),
         "졸업한 형은 본교 형제에서 빠진다"
     );
     // 관계 자체는 남아 있고, 왜 함께 다니지 않는지 알려 준다
     let links = db.read(|c| sibling::links_of(c, small)).unwrap();
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].status, "CONFIRMED");
-    let view = db.read(|c| sibling::list_for_student(c, small, TO)).unwrap();
+    let view = db.read(|c| sibling::list_for_student(c, small, TO, today())).unwrap();
     assert_eq!(view[0].partner_note.as_deref(), Some("졸업"));
 }
 
@@ -737,13 +737,13 @@ fn 전환_뒤_새_학년도_통계가_그대로_작동한다() {
     let out = run(&db, &plan_of(&db, Some(&assigns), &[]));
 
     let counts = db
-        .read(|c| stats::totals(c, &stats::StatFilter::year(TO)))
+        .read(|c| stats::totals(c, &stats::StatFilter::year(TO), today()))
         .unwrap();
     assert_eq!(counts.total as usize, out.promoted, "진급생만 있다");
     assert_eq!((counts.male, counts.female), (1, 1));
 
     let old = db
-        .read(|c| stats::totals(c, &stats::StatFilter::year(FROM)))
+        .read(|c| stats::totals(c, &stats::StatFilter::year(FROM), today()))
         .unwrap();
     assert_eq!(old.total, 3, "지난 학년도는 그대로 3명이다");
 }

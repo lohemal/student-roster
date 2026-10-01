@@ -1,6 +1,12 @@
 //! 확인 필요 표의 동작 검사 — 특히 '같은 것이 두 번 쌓이지 않는다'.
 
 use super::*;
+use chrono::NaiveDate;
+
+/// 검사는 시스템 시계를 보지 않는다 — 기준일을 직접 정한다.
+fn today() -> NaiveDate {
+    NaiveDate::from_ymd_opt(2026, 9, 15).unwrap()
+}
 use crate::db::Db;
 
 fn db_with_student() -> (Db, i64) {
@@ -116,7 +122,7 @@ fn add_student(db: &Db, name: &str, grade: i32, class_name: &str, class_no: i32)
 }
 
 fn find(db: &Db, f: IssueFilter) -> Vec<IssueListRow> {
-    db.read(|c| list(c, &f, 100, 0)).unwrap().rows
+    db.read(|c| list(c, &f, 100, 0, today())).unwrap().rows
 }
 
 fn year(school_year: i32) -> IssueFilter {
@@ -309,11 +315,11 @@ fn 종류마다_열_곳을_알려_준다() {
 #[test]
 fn 쪽_나누기와_전체_수가_맞는다() {
     let db = sample();
-    let page = db.read(|c| list(c, &year(2026), 2, 0)).unwrap();
+    let page = db.read(|c| list(c, &year(2026), 2, 0, today())).unwrap();
     assert_eq!(page.total, 4, "전체 수는 쪽과 상관없다");
     assert_eq!(page.rows.len(), 2);
 
-    let next = db.read(|c| list(c, &year(2026), 2, 2)).unwrap();
+    let next = db.read(|c| list(c, &year(2026), 2, 2, today())).unwrap();
     assert_eq!(next.rows.len(), 2);
 
     let first: Vec<i64> = page.rows.iter().map(|r| r.id).collect();

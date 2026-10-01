@@ -165,6 +165,33 @@
   gap: 6px;
 }
 
+/*
+  나란히 놓은 입력칸들.
+
+  `align-items: flex-start` 가 핵심이다. 밑선을 맞추면 도움말이 달린 칸만 위로
+  밀려 라벨과 입력칸이 어긋난다. 윗선을 맞추면 라벨 높이와 입력칸 높이가
+  (`--control-h`) 모두 같으므로 저절로 한 줄로 보이고, 도움말은 아래로만 자란다.
+*/
+.fieldRow {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.fieldRow > .field {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* 입력칸 옆 버튼 — 라벨 높이만큼 내려 윗선을 맞춘다 */
+.fieldAction {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+}
+
 .label {
   font-size: var(--fs-sm);
   font-weight: 600;

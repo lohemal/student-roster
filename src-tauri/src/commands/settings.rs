@@ -5,6 +5,7 @@ use tauri::State;
 
 use crate::error::{AppError, AppResult};
 use crate::repo;
+use super::today;
 use crate::AppState;
 
 #[derive(Debug, Serialize)]
@@ -32,7 +33,7 @@ pub fn settings_get(state: State<'_, AppState>) -> AppResult<SettingsView> {
         Ok(SettingsView {
             school_name: repo::settings::get(c, "school_name")?.unwrap_or_default(),
             current_year: repo::settings::current_year(c)?,
-            years: repo::settings::list_years(c)?
+            years: repo::settings::list_years(c, today())?
                 .into_iter()
                 .map(|y| SchoolYearRow {
                     year: y.year,

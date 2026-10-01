@@ -14,6 +14,7 @@ import {
   tableClass,
 } from '@/components/ui'
 import { StudentDrawer } from '@/features/student/StudentDrawer'
+import { PendingBadge, RescheduleButton } from '@/features/transfer/PendingMove'
 import { TransferDrawer } from '@/features/transfer/TransferDrawer'
 import { settingsApi } from '@/ipc/settings'
 import { studentApi } from '@/ipc/student'
@@ -152,8 +153,8 @@ export function TransferOutPage() {
                 성별
               </th>
               <th style={{ width: 150 }}>전출 학교·지역</th>
-              <th>비고</th>
-              <th style={{ width: 128 }} />
+              <th style={{ width: 120 }}>상태</th>
+              <th style={{ width: 240 }} />
             </tr>
           </thead>
           <tbody>
@@ -170,10 +171,17 @@ export function TransferOutPage() {
                 <td style={{ fontWeight: 600 }}>{r.name}</td>
                 <td className={tableClass.center}>{genderLabel(r.gender)}</td>
                 <td>{r.toSchool ?? <span className={tableClass.muted}>모름</span>}</td>
-                <td className={s.noteCell} title={r.note ?? ''}>
-                  {r.note ?? ''}
+                <td className={s.badgeCell}>
+                  {r.pending ? (
+                    <PendingBadge row={r} />
+                  ) : (
+                    <span className={tableClass.muted}>전출</span>
+                  )}
                 </td>
-                <td>
+                <td className={s.badgeCell}>
+                  {r.pending === 'OUT' && (
+                    <RescheduleButton row={r} schoolYear={schoolYear} onDone={refresh} />
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
@@ -196,7 +204,8 @@ export function TransferOutPage() {
         <Notice tone="info">
           전출한 학생의 자료는 <b>지워지지 않습니다.</b> 현재 학생명단과 인원 집계에서만
           빠져 있습니다. 잘못 처리했다면 [전출 취소]로 되돌릴 수 있고, 그 기록도 학적
-          이력에 남습니다.
+          이력에 남습니다. <b>전출 예정</b>은 전출일 전까지 학생명단·통계에 그대로
+          들어 있고, 그날부터 저절로 빠집니다. 날짜가 바뀌었으면 [예정일 변경]을 쓰세요.
         </Notice>
       </div>
 

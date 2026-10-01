@@ -75,6 +75,7 @@ fn counts(db: &Db, grade: i32) -> Vec<ClassCount> {
                 grade: Some(grade),
                 ..year(2026)
             },
+            today(),
         )
     })
     .unwrap()
@@ -101,7 +102,7 @@ fn leave(db: &Db, student_id: i64) {
 
 /// 모든 표가 같은 숫자를 말하는지 한 번에 본다.
 fn assert_consistent(db: &Db, f: &StatFilter) -> Consistency {
-    let ck = db.read(|c| check_consistency(c, f)).unwrap();
+    let ck = db.read(|c| check_consistency(c, f, today())).unwrap();
     assert!(
         ck.ok,
         "표마다 숫자가 다르다: 전체 {} · 성별 {} · 학년 {} · 반 {} · 주소 {} · 교차 {}",
@@ -201,7 +202,7 @@ fn 다른_학년은_섞이지_않는다() {
     assert_eq!(three[0].counts.total, 1);
     assert_eq!(three[0].grade, 3);
 
-    let all = db.read(|c| by_class(c, &year(2026))).unwrap();
+    let all = db.read(|c| by_class(c, &year(2026), today())).unwrap();
     assert_eq!(all.len(), 3);
     assert_eq!(all.iter().map(|r| r.counts.total).sum::<i64>(), 3);
 }
@@ -238,7 +239,7 @@ fn 학년_합계도_함께_준다() {
     add(&db, "다학생", 3, "나리", 1, "M");
     add(&db, "라학생", 3, "나리", 2, "");
 
-    let g = db.read(|c| grade_counts(c, 2026, 3)).unwrap();
+    let g = db.read(|c| grade_counts(c, 2026, 3, today())).unwrap();
     assert_eq!(g.classes.len(), 2);
     let t = &g.total.counts;
     assert_eq!((t.male, t.female, t.unknown, t.total), (2, 1, 1, 4));
@@ -252,11 +253,11 @@ fn 그_반에서_쓰이는_번호를_알려_준다() {
     add(&db, "나학생", 3, "나리", 7, "F");
     let out = add(&db, "다학생", 3, "나리", 9, "M");
 
-    let used = db.read(|c| used_numbers(c, 2026, 3, Some("나리"))).unwrap();
+    let used = db.read(|c| used_numbers(c, 2026, 3, Some("나리"), today())).unwrap();
     assert_eq!(used, vec![1, 7, 9]);
 
     leave(&db, out);
-    let used = db.read(|c| used_numbers(c, 2026, 3, Some("나리"))).unwrap();
+    let used = db.read(|c| used_numbers(c, 2026, 3, Some("나리"), today())).unwrap();
     assert_eq!(used, vec![1, 7]);
 }
 
@@ -301,7 +302,7 @@ fn 전체는_남녀와_미입력의_합이다() {
     add(&db, "다학생", 2, "나리", 1, "F");
     add(&db, "라학생", 3, "다솜", 1, "");
 
-    let t = db.read(|c| totals(c, &year(2026))).unwrap();
+    let t = db.read(|c| totals(c, &year(2026), today())).unwrap();
     assert_eq!((t.male, t.female, t.unknown, t.total), (2, 1, 1, 4));
     assert!(t.balanced());
 }
@@ -314,7 +315,7 @@ fn 학년별_합계의_총합이_전체와_같다() {
             add(&db, &format!("학생{g}{i:02}"), g, "가람", i, if i % 2 == 0 { "M" } else { "F" });
         }
     }
-    let rows = db.read(|c| by_grade(c, &year(2026))).unwrap();
+    let rows = db.read(|c| by_grade(c, &year(2026), today())).unwrap();
     assert_eq!(rows.len(), 6, "학생이 있는 학년만 나온다");
     assert_eq!(rows.iter().map(|r| r.grade).collect::<Vec<_>>(), vec![1, 2, 3, 4, 5, 6]);
 
@@ -328,10 +329,10 @@ fn 학생이_없는_학년은_표에_나오지_않는다() {
     add(&db, "가학생", 2, "가람", 1, "M");
     add(&db, "나학생", 5, "가람", 1, "F");
 
-    let rows = db.read(|c| by_grade(c, &year(2026))).unwrap();
+    let rows = db.read(|c| by_grade(c, &year(2026), today())).unwrap();
     assert_eq!(rows.iter().map(|r| r.grade).collect::<Vec<_>>(), vec![2, 5]);
     assert_eq!(
-        db.read(|c| grades_present(c, &year(2026))).unwrap(),
+        db.read(|c| grades_present(c, &year(2026), today())).unwrap(),
         vec![2, 5]
     );
 }
@@ -371,7 +372,7 @@ fn 미분류와_기타와_주소_없음을_섞지_않는다() {
     // 주소 자체가 없는 학생
     add_at(&db, 2026, "주소없는학생", 1, Some("가람"), Some(3), "M", "");
 
-    let t = db.read(|c| by_address(c, &year(2026))).unwrap();
+    let t = db.read(|c| by_address(c, &year(2026), today())).unwrap();
     let row = |name: &str| {
         t.rows
             .iter()
@@ -411,7 +412,7 @@ fn 주소_교차표의_행과_열_합계가_전체와_맞는다() {
     add_at(&db, 2026, "미분류학생", 2, Some("나리"), Some(9), "F", "○○시 사온로 707");
     add_at(&db, 2026, "주소없는학생", 4, Some("나리"), Some(9), "F", "");
 
-    let t = db.read(|c| by_address(c, &year(2026))).unwrap();
+    let t = db.read(|c| by_address(c, &year(2026), today())).unwrap();
     assert_eq!(t.grades, vec![1, 2, 3, 4]);
     assert_eq!(t.total, 8);
 
@@ -444,7 +445,7 @@ fn 학생이_없는_분류도_영으로_보여_준다() {
     make_category(&db, "빈단지");
     add_at(&db, 2026, "가학생", 1, Some("가람"), Some(1), "M", "");
 
-    let t = db.read(|c| by_address(c, &year(2026))).unwrap();
+    let t = db.read(|c| by_address(c, &year(2026), today())).unwrap();
     let empty = t.rows.iter().find(|r| r.name == "빈단지").unwrap();
     assert_eq!(empty.total, 0, "0명도 알려 주는 것이 정보다");
     assert_eq!(empty.by_grade, vec![0]);
@@ -459,7 +460,7 @@ fn 주소_판정_상태를_함께_센다() {
     add_at(&db, 2026, "미분류학생", 1, Some("가람"), Some(2), "F", "○○시 사온로 707");
     add_at(&db, 2026, "주소없는학생", 1, Some("가람"), Some(3), "M", "");
 
-    let q = db.read(|c| address_quality(c, &year(2026))).unwrap();
+    let q = db.read(|c| address_quality(c, &year(2026), today())).unwrap();
     assert_eq!(q.total, 3);
     assert_eq!(q.classified, 1);
     assert_eq!(q.unclassified, 1);
@@ -490,7 +491,7 @@ fn 학년을_고르면_모든_표가_그_학년만_본다() {
     };
     let ck = assert_consistent(&db, &f);
     assert_eq!(ck.total, 5, "2학년만 센다");
-    assert_eq!(db.read(|c| grades_present(c, &f)).unwrap(), vec![2]);
+    assert_eq!(db.read(|c| grades_present(c, &f, today())).unwrap(), vec![2]);
 }
 
 #[test]
@@ -518,7 +519,7 @@ fn 주소_분류를_고르면_모든_표가_그_분류만_본다() {
         address_category_id: Some(danji),
         ..year(2026)
     };
-    let rows = db.read(|c| by_class(c, &narrow)).unwrap();
+    let rows = db.read(|c| by_class(c, &narrow, today())).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].class_label, "3-나리");
     assert_eq!(rows[0].counts.total, 4);
@@ -535,14 +536,14 @@ fn 주소_없음만_따로_볼_수_있다() {
         address_none: true,
         ..year(2026)
     };
-    assert_eq!(db.read(|c| totals(c, &f)).unwrap().total, 2);
+    assert_eq!(db.read(|c| totals(c, &f, today())).unwrap().total, 2);
 
     let f = StatFilter {
         address_unclassified: true,
         ..year(2026)
     };
     assert_eq!(
-        db.read(|c| totals(c, &f)).unwrap().total,
+        db.read(|c| totals(c, &f, today())).unwrap().total,
         1,
         "주소는 있는데 분류를 못 정한 학생"
     );
@@ -567,7 +568,7 @@ fn 통계에서_센_숫자가_학생명단_인원과_같다() {
         address_category_id: Some(danji),
         ..year(2026)
     };
-    let stat = db.read(|c| totals(c, &f)).unwrap().total;
+    let stat = db.read(|c| totals(c, &f, today())).unwrap().total;
     assert_eq!(stat, 6, "전출한 학생은 빠진다");
 
     // 같은 조건으로 학생명단을 열면 같은 인원이어야 한다
@@ -579,7 +580,7 @@ fn 통계에서_센_숫자가_학생명단_인원과_같다() {
                 address_category_id: Some(danji),
                 ..Default::default()
             };
-            Ok(student::list(c, &lf, 500, 0)?.total)
+            Ok(student::list(c, &lf, 500, 0, today())?.total)
         })
         .unwrap();
     assert_eq!(listed, stat, "통계 숫자를 눌러 간 명단이 달라지면 안 된다");
@@ -593,6 +594,7 @@ fn 통계에서_센_숫자가_학생명단_인원과_같다() {
                     address_none: true,
                     ..year(2026)
                 },
+                today(),
             )
         })
         .unwrap()
@@ -604,7 +606,7 @@ fn 통계에서_센_숫자가_학생명단_인원과_같다() {
                 address_none: true,
                 ..Default::default()
             };
-            Ok(student::list(c, &lf, 500, 0)?.total)
+            Ok(student::list(c, &lf, 500, 0, today())?.total)
         })
         .unwrap();
     assert_eq!(none_stat, 1);
@@ -685,16 +687,16 @@ fn 지난_학년도는_그때의_학년과_반으로_센다() {
     })
     .unwrap();
 
-    let g2025 = db.read(|c| by_grade(c, &year(2025))).unwrap();
+    let g2025 = db.read(|c| by_grade(c, &year(2025), today())).unwrap();
     assert_eq!(g2025.len(), 1);
     assert_eq!(g2025[0].grade, 2, "지난 학년도에는 2학년으로 센다");
 
-    let g2026 = db.read(|c| by_grade(c, &year(2026))).unwrap();
+    let g2026 = db.read(|c| by_grade(c, &year(2026), today())).unwrap();
     assert_eq!(g2026[0].grade, 3, "올해는 3학년으로 센다");
 
-    let c2025 = db.read(|c| by_class(c, &year(2025))).unwrap();
+    let c2025 = db.read(|c| by_class(c, &year(2025), today())).unwrap();
     assert_eq!(c2025[0].class_label, "2-가람");
-    let c2026 = db.read(|c| by_class(c, &year(2026))).unwrap();
+    let c2026 = db.read(|c| by_class(c, &year(2026), today())).unwrap();
     assert_eq!(c2026[0].class_label, "3-나리");
 }
 
@@ -714,7 +716,7 @@ fn 지난_학년도는_그_해_마지막_상태로_센다() {
     })
     .unwrap();
 
-    let t = db.read(|c| totals(c, &year(2025))).unwrap();
+    let t = db.read(|c| totals(c, &year(2025), today())).unwrap();
     assert_eq!(
         t.total, 1,
         "학년도 최종 재적 기준 — 그 해 끝에 남아 있던 학생만 센다"
@@ -729,8 +731,8 @@ fn 올해_학적이_없는_학생은_올해_통계에_들지_않는다() {
     add_at(&db, 2025, "지난해만학생", 6, Some("가람"), Some(1), "M", "");
     add(&db, "올해학생", 1, "가람", 1, "F");
 
-    assert_eq!(db.read(|c| totals(c, &year(2026))).unwrap().total, 1);
-    assert_eq!(db.read(|c| totals(c, &year(2025))).unwrap().total, 1);
+    assert_eq!(db.read(|c| totals(c, &year(2026), today())).unwrap().total, 1);
+    assert_eq!(db.read(|c| totals(c, &year(2025), today())).unwrap().total, 1);
 }
 
 // ---------------------------------------------------------------
@@ -804,7 +806,7 @@ fn 여러_상태가_섞여도_모든_표가_같은_숫자를_말한다() {
                 school_year: 2026,
                 ..Default::default()
             };
-            Ok(student::list(c, &lf, 500, 0)?.total)
+            Ok(student::list(c, &lf, 500, 0, today())?.total)
         })
         .unwrap();
     assert_eq!(listed, ck.total, "학생명단과 통계가 같은 수를 말해야 한다");
@@ -861,7 +863,7 @@ fn 이천명도_바로_센다() {
 
     let f = year(2026);
     let start = Instant::now();
-    let ck = db.read(|c| check_consistency(c, &f)).unwrap();
+    let ck = db.read(|c| check_consistency(c, &f, today())).unwrap();
     let elapsed = start.elapsed();
 
     assert_eq!(ck.total, 2000);

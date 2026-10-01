@@ -14,10 +14,11 @@
 //!   * **집계 결과를 저장하지 않는다.** 언제나 지금 자료를 세어 답한다.
 //!   * 지난 학년도는 `enrollments` 의 그 해 학적으로 센다. 지금 학년·반이 아니다.
 
+use chrono::NaiveDate;
 use rusqlite::{types::Value, Connection};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::enroll::ACTIVE_STATUS_SQL as ACTIVE;
+use crate::domain::enroll;
 use crate::domain::label;
 use crate::error::AppResult;
 
@@ -53,10 +54,10 @@ impl StatFilter {
     }
 
     /// `WHERE` 뒤에 붙일 조건과 값.
-    fn where_parts(&self) -> (String, Vec<Value>) {
+    fn where_parts(&self, asof: NaiveDate) -> (String, Vec<Value>) {
         let mut sql = vec![
             "e.school_year = ?".to_string(),
-            format!("e.{ACTIVE}"),
+            enroll::active_sql("e.", asof),
         ];
         let mut args = vec![Value::Integer(self.school_year as i64)];
 
@@ -89,9 +90,12 @@ pub const UNCLASSIFIED_SQL: &str = "(s.address_category_id IS NULL \
 const FROM: &str = "FROM enrollments e JOIN students s ON s.id = e.student_id";
 
 /// 남/여/미입력을 한 번에 세는 조각. 세 갈래가 겹치지도 빠지지도 않는다.
-const GENDER_SUMS: &str = "SUM(CASE WHEN s.gender = 'M' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN s.gender = 'F' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN s.gender IS NULL OR s.gender NOT IN ('M','F') THEN 1 ELSE 0 END),
+///
+/// 한 명도 없을 때 `SUM` 은 NULL 이다 — 0 으로 받아야 한다. 전입 예정만 있는 날처럼
+/// **조건에 드는 학생이 아예 없는 때가 실제로 있다.**
+const GENDER_SUMS: &str = "COALESCE(SUM(CASE WHEN s.gender = 'M' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.gender = 'F' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.gender IS NULL OR s.gender NOT IN ('M','F') THEN 1 ELSE 0 END), 0),
             COUNT(*)";
 
 // ---------------------------------------------------------------
@@ -117,8 +121,8 @@ impl Counts {
 }
 
 /// 고른 조건에 드는 학생 전체.
-pub fn totals(c: &Connection, f: &StatFilter) -> AppResult<Counts> {
-    let (w, args) = f.where_parts();
+pub fn totals(c: &Connection, f: &StatFilter, asof: NaiveDate) -> AppResult<Counts> {
+    let (w, args) = f.where_parts(asof);
     let sql = format!("SELECT {GENDER_SUMS} {FROM} WHERE {w}");
     Ok(c.query_row(&sql, rusqlite::params_from_iter(args.iter()), |r| {
         Ok(Counts {
@@ -143,8 +147,8 @@ pub struct GradeRow {
 }
 
 /// 학년별 남/여/미입력. **실제로 학생이 있는 학년만** 나온다.
-pub fn by_grade(c: &Connection, f: &StatFilter) -> AppResult<Vec<GradeRow>> {
-    let (w, args) = f.where_parts();
+pub fn by_grade(c: &Connection, f: &StatFilter, asof: NaiveDate) -> AppResult<Vec<GradeRow>> {
+    let (w, args) = f.where_parts(asof);
     let sql = format!(
         "SELECT e.grade, {GENDER_SUMS} {FROM} WHERE {w} GROUP BY e.grade ORDER BY e.grade"
     );
@@ -166,8 +170,8 @@ pub fn by_grade(c: &Connection, f: &StatFilter) -> AppResult<Vec<GradeRow>> {
 }
 
 /// 그 학년도에 실제로 학생이 있는 학년. 표의 열을 만드는 데 쓴다.
-pub fn grades_present(c: &Connection, f: &StatFilter) -> AppResult<Vec<i32>> {
-    let (w, args) = f.where_parts();
+pub fn grades_present(c: &Connection, f: &StatFilter, asof: NaiveDate) -> AppResult<Vec<i32>> {
+    let (w, args) = f.where_parts(asof);
     let sql = format!("SELECT DISTINCT e.grade {FROM} WHERE {w} ORDER BY e.grade");
     let mut st = c.prepare(&sql)?;
     let rows = st
@@ -208,8 +212,8 @@ impl ClassCount {
 /// 반이 정해지지 않은 학생도 **빠뜨리지 않고** `미정` 으로 센다. 빠뜨리면 반별 합계가
 /// 전체와 달라져 어느 숫자가 맞는지 알 수 없게 된다.
 /// 정렬은 학생명단과 같은 규칙(`label::ORDER_BY_CLASS`)을 쓴다.
-pub fn by_class(c: &Connection, f: &StatFilter) -> AppResult<Vec<ClassCount>> {
-    let (w, args) = f.where_parts();
+pub fn by_class(c: &Connection, f: &StatFilter, asof: NaiveDate) -> AppResult<Vec<ClassCount>> {
+    let (w, args) = f.where_parts(asof);
     let sql = format!(
         "SELECT e.grade, e.class_name, {GENDER_SUMS} {FROM}
           WHERE {w}
@@ -251,12 +255,12 @@ pub struct GradeCounts {
 ///
 /// 아직 학생이 한 명도 없는 반은 나오지 않는다. 새 반을 만들고 싶으면 반 이름을
 /// 직접 적으면 된다 — 프로그램이 반 목록을 정해 주지 않는다.
-pub fn grade_counts(c: &Connection, school_year: i32, grade: i32) -> AppResult<GradeCounts> {
+pub fn grade_counts(c: &Connection, school_year: i32, grade: i32, asof: NaiveDate) -> AppResult<GradeCounts> {
     let f = StatFilter {
         grade: Some(grade),
         ..StatFilter::year(school_year)
     };
-    let classes = by_class(c, &f)?;
+    let classes = by_class(c, &f, asof)?;
     let mut total = ClassCount::empty(grade, None);
     total.class_label = format!("{grade}학년 합계");
     for r in &classes {
@@ -281,13 +285,15 @@ pub fn used_numbers(
     school_year: i32,
     grade: i32,
     class_name: Option<&str>,
+    asof: NaiveDate,
 ) -> AppResult<Vec<i32>> {
+    let active = enroll::active_sql("", asof);
     let sql = format!(
         "SELECT DISTINCT class_no FROM enrollments
           WHERE school_year = ?1 AND grade = ?2
             AND ((class_name IS NULL AND ?3 IS NULL) OR class_name = ?3)
             AND class_no IS NOT NULL
-            AND {ACTIVE}
+            AND {active}
           ORDER BY class_no"
     );
     let mut st = c.prepare(&sql)?;
@@ -345,8 +351,8 @@ pub struct AddressTable {
 ///
 /// 학생이 한 명도 없는 분류도 줄은 보여 준다 — 0명이라는 것도 정보다.
 /// 대신 학생이 없는 학년은 열을 만들지 않는다.
-pub fn by_address(c: &Connection, f: &StatFilter) -> AppResult<AddressTable> {
-    let grades = grades_present(c, f)?;
+pub fn by_address(c: &Connection, f: &StatFilter, asof: NaiveDate) -> AppResult<AddressTable> {
+    let grades = grades_present(c, f, asof)?;
     let index: std::collections::HashMap<i32, usize> =
         grades.iter().enumerate().map(|(i, g)| (*g, i)).collect();
 
@@ -390,7 +396,7 @@ pub fn by_address(c: &Connection, f: &StatFilter) -> AppResult<AddressTable> {
         total: 0,
     });
 
-    let (w, args) = f.where_parts();
+    let (w, args) = f.where_parts(asof);
     let sql = format!(
         "SELECT s.address_category_id,
                 CASE WHEN {NO_ADDRESS_SQL} THEN 1 ELSE 0 END,
@@ -467,17 +473,17 @@ pub struct AddressQuality {
     pub total: i64,
 }
 
-pub fn address_quality(c: &Connection, f: &StatFilter) -> AppResult<AddressQuality> {
-    let (w, args) = f.where_parts();
+pub fn address_quality(c: &Connection, f: &StatFilter, asof: NaiveDate) -> AppResult<AddressQuality> {
+    let (w, args) = f.where_parts(asof);
     let sql = format!(
         "SELECT
-            SUM(CASE WHEN s.address_category_id IS NOT NULL THEN 1 ELSE 0 END),
-            SUM(CASE WHEN {UNCLASSIFIED_SQL} THEN 1 ELSE 0 END),
-            SUM(CASE WHEN {NO_ADDRESS_SQL} THEN 1 ELSE 0 END),
-            SUM(CASE WHEN s.address_source = 'MANUAL' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN s.address_source = 'RULE' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN s.address_source = 'AUTO' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN s.address_source = 'CONFLICT' THEN 1 ELSE 0 END),
+            COALESCE(SUM(CASE WHEN s.address_category_id IS NOT NULL THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN {UNCLASSIFIED_SQL} THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN {NO_ADDRESS_SQL} THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.address_source = 'MANUAL' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.address_source = 'RULE' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.address_source = 'AUTO' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN s.address_source = 'CONFLICT' THEN 1 ELSE 0 END), 0),
             COUNT(*)
          {FROM} WHERE {w}"
     );
@@ -520,11 +526,11 @@ pub struct Consistency {
     pub ok: bool,
 }
 
-pub fn check_consistency(c: &Connection, f: &StatFilter) -> AppResult<Consistency> {
-    let t = totals(c, f)?;
-    let grade_sum: i64 = by_grade(c, f)?.iter().map(|r| r.counts.total).sum();
-    let class_sum: i64 = by_class(c, f)?.iter().map(|r| r.counts.total).sum();
-    let addr = by_address(c, f)?;
+pub fn check_consistency(c: &Connection, f: &StatFilter, asof: NaiveDate) -> AppResult<Consistency> {
+    let t = totals(c, f, asof)?;
+    let grade_sum: i64 = by_grade(c, f, asof)?.iter().map(|r| r.counts.total).sum();
+    let class_sum: i64 = by_class(c, f, asof)?.iter().map(|r| r.counts.total).sum();
+    let addr = by_address(c, f, asof)?;
     let address_sum: i64 = addr.rows.iter().map(|r| r.total).sum();
     let cross_sum: i64 = addr
         .rows

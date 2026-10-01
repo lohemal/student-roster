@@ -2,7 +2,15 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, MapPinned } from 'lucide-react'
 
-import { Badge, Button, ErrorNotice, Field, Select, type Tone } from '@/components/ui'
+import {
+  Badge,
+  Button,
+  ErrorNotice,
+  Field,
+  FieldAction,
+  Select,
+  type Tone,
+} from '@/components/ui'
 import {
   addressApi,
   RULE_KIND_LABEL,
@@ -146,23 +154,27 @@ export function AddressPanel({
               ))}
             </Select>
           </Field>
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => setManual.mutate(Number(pick))}
-            disabled={pick === '' || setManual.isPending}
-          >
-            이번 학생만 적용
-          </Button>
-          {st.source === 'MANUAL' && (
+          <FieldAction>
             <Button
               size="sm"
-              variant="ghost"
-              onClick={() => setManual.mutate(null)}
-              disabled={setManual.isPending}
+              variant="primary"
+              onClick={() => setManual.mutate(Number(pick))}
+              disabled={pick === '' || setManual.isPending}
             >
-              직접 지정 풀기
+              이번 학생만 적용
             </Button>
+          </FieldAction>
+          {st.source === 'MANUAL' && (
+            <FieldAction>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setManual.mutate(null)}
+                disabled={setManual.isPending}
+              >
+                직접 지정 풀기
+              </Button>
+            </FieldAction>
           )}
         </div>
       )}

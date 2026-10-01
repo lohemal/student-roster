@@ -6,14 +6,20 @@
   gap: var(--sp-4);
 }
 
+/*
+  도움말이 달린 칸과 없는 칸의 **윗선**을 맞춘다. 밑선을 맞추면 도움말 높이만큼
+  그 칸만 위로 밀려 라벨과 입력칸이 어긋난다(v0.1.3에서 고침).
+*/
 .lookupRow {
   display: flex;
   gap: var(--sp-3);
-  align-items: flex-end;
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .lookupRow > label {
   flex: 1;
+  min-width: 140px;
 }
 
 .lookupFoot {
@@ -220,6 +226,63 @@
   flex: 1;
 }
 
+.picked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.pickedStudent {
+  flex-wrap: wrap;
+}
+
+/* 이미 들어 있는 학생정보 — 다시 입력하지 않아도 된다는 것을 보여 준다 */
+.pickedDetail {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 6px var(--sp-3);
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+}
+
+.pickedDetail dt {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.pickedDetail dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pickedFaint {
+  color: var(--text-faint);
+}
+
+/* ---------- 예정된 이동 ---------- */
+
+.pendingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.dateEdit {
+  width: 150px;
+}
+
+.askText {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .sectionTitle {
   font-size: var(--fs-sm);
   font-weight: 700;
@@ -354,4 +417,12 @@
 
 .note {
   margin-top: var(--sp-4);
+}
+
+/* 뱃지·버튼이 여럿 들어가는 칸 */
+.badgeCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }

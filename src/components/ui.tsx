@@ -121,6 +121,40 @@ export function Field({
   )
 }
 
+/**
+ * 입력칸을 나란히 놓는 줄.
+ *
+ * **도움말이 있는 칸과 없는 칸의 윗선을 맞춘다.** 밑선을 맞추면(`align-items: flex-end`)
+ * 도움말 높이만큼 그 칸의 라벨·입력칸이 위로 밀려 한 줄로 보이지 않는다. 도움말은
+ * 아래로만 자라게 두고 위는 건드리지 않는다.
+ */
+export function FieldRow({
+  className,
+  children,
+}: {
+  className?: string
+  children: ReactNode
+}) {
+  return <div className={cx(s.fieldRow, className)}>{children}</div>
+}
+
+/**
+ * `FieldRow` 안에서 입력칸 옆에 버튼을 둘 때.
+ *
+ * 라벨과 같은 높이의 빈 줄을 위에 깔아 **버튼 윗선이 입력칸과 맞는다.** 읽어 주는
+ * 프로그램에는 들리지 않도록 숨긴다.
+ */
+export function FieldAction({ children }: { children: ReactNode }) {
+  return (
+    <div className={s.fieldAction}>
+      <span className={s.label} aria-hidden="true">
+        &nbsp;
+      </span>
+      {children}
+    </div>
+  )
+}
+
 export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cx(s.input, className)} {...rest} />
 }

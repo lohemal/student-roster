@@ -153,6 +153,31 @@ fn dot(iso: &str) -> String {
 // 사건 남기기 (중복 안전)
 // ---------------------------------------------------------------
 
+/// 그 학년도에서 **이미 일어난** 가장 마지막 이동 (종류 이름, 날짜).
+///
+/// 아직 오지 않은 이동(전입·전출 예정)은 일어난 일이 아니므로 세지 않는다. 예정일을
+/// 앞당길 때 "앞선 이동보다 이르다" 고 스스로를 막아서면 고칠 길이 없어진다.
+fn last_done(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    asof: NaiveDate,
+) -> AppResult<Option<(String, NaiveDate)>> {
+    let row: Option<(String, String)> = c
+        .query_row(
+            "SELECT kind, event_date FROM enrollment_events
+              WHERE student_id = ?1 AND school_year = ?2
+                AND event_date IS NOT NULL AND event_date <= ?3
+              ORDER BY id DESC LIMIT 1",
+            params![student_id, school_year, asof.to_string()],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    Ok(row.and_then(|(kind, date)| {
+        enroll::parse_date(&date).map(|d| (student::event_label(&kind).to_string(), d))
+    }))
+}
+
 /// 그 학년도의 가장 마지막 사건 (종류, 날짜).
 fn last_event(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Option<(String, Option<String>)>> {
     let row = c
@@ -205,6 +230,9 @@ fn add_event_once(
 }
 
 /// 이동 날짜를 따진다. 앞선 사건보다 이른 날짜는 이력을 뒤집으므로 막는다.
+///
+/// **아직 오지 않은 날은 받는다** — 전입·전출 예정을 미리 적어 두기 위해서다.
+/// 견주는 대상도 '이미 일어난' 이동뿐이다(`last_done`).
 fn check(
     c: &Connection,
     student_id: Option<i64>,
@@ -214,14 +242,11 @@ fn check(
     today: NaiveDate,
 ) -> AppResult<String> {
     let last = match student_id {
-        Some(id) => last_event(c, id, school_year)?
-            .and_then(|(kind, date)| {
-                date.and_then(|d| enroll::parse_date(&d))
-                    .map(|d| (student::event_label(&kind), d))
-            }),
+        Some(id) => last_done(c, id, school_year, today)?,
         None => None,
     };
-    match enroll::check_date(raw, school_year, today, last) {
+    let last = last.as_ref().map(|(k, d)| (k.as_str(), *d));
+    match enroll::check_date(raw, school_year, last) {
         Ok(d) => Ok(d.to_string()),
         Err(e) => Err(AppError::invalid(problem_message(&e, what, school_year))),
     }
@@ -510,6 +535,195 @@ pub fn transfer_out_cancel(
     )
 }
 
+// ---------------------------------------------------------------
+// 예정된 이동 고치기·되돌리기
+// ---------------------------------------------------------------
+
+/// 학적 한 줄에서 예정 판정에 필요한 것만.
+struct Seat {
+    grade: i32,
+    class_name: Option<String>,
+    class_no: Option<i32>,
+    status: String,
+    in_date: Option<String>,
+    out_date: Option<String>,
+}
+
+fn seat_of(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Seat> {
+    c.query_row(
+        "SELECT grade, class_name, class_no, status, transfer_in_date, transfer_out_date
+           FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
+        params![student_id, school_year],
+        |r| {
+            Ok(Seat {
+                grade: r.get(0)?,
+                class_name: r.get(1)?,
+                class_no: r.get(2)?,
+                status: r.get(3)?,
+                in_date: r.get(4)?,
+                out_date: r.get(5)?,
+            })
+        },
+    )
+    .optional()?
+    .ok_or_else(|| {
+        AppError::not_found(format!("이 학생에게는 {school_year}학년도 학적이 없습니다."))
+    })
+}
+
+impl Seat {
+    fn pending(&self, asof: NaiveDate) -> Option<enroll::Pending> {
+        enroll::pending_on(
+            &self.status,
+            self.in_date.as_deref(),
+            self.out_date.as_deref(),
+            asof,
+        )
+    }
+}
+
+/// 아직 오지 않은 전입·전출의 **날짜만** 바꾼다.
+///
+/// 이미 일어난 이동은 고치지 않는다 — 그건 이력을 다시 쓰는 일이라 취소하고 새로
+/// 처리해야 한다. 날짜를 바꾸면 그 사실도 사건으로 남기므로 무엇이 언제 바뀌었는지
+/// 뒤에 알 수 있고, 현재 재학생 판정은 **DB 를 고치지 않아도** 바로 따라온다.
+pub fn reschedule(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    raw_date: &str,
+    today: NaiveDate,
+) -> AppResult<String> {
+    let seat = seat_of(c, student_id, school_year)?;
+    let pending = seat.pending(today).ok_or_else(|| {
+        AppError::invalid("아직 오지 않은 전입·전출이 없습니다. 예정일만 바꿀 수 있습니다.")
+    })?;
+
+    let what = match pending {
+        enroll::Pending::In(_) => "전입일",
+        enroll::Pending::Out(_) => "전출일",
+    };
+    let date = check(c, Some(student_id), school_year, raw_date, what, today)?;
+    let was = enroll::format_date(pending.date());
+    if date == pending.date().to_string() {
+        return Ok(date); // 같은 날로 다시 눌렀다 — 할 일이 없다
+    }
+
+    let (column, kind) = match pending {
+        enroll::Pending::In(_) => ("transfer_in_date", "TRANSFER_IN"),
+        enroll::Pending::Out(_) => ("transfer_out_date", "TRANSFER_OUT"),
+    };
+    c.execute(
+        &format!(
+            "UPDATE enrollments
+                SET {column} = ?3, updated_at = datetime('now','localtime')
+              WHERE student_id = ?1 AND school_year = ?2"
+        ),
+        params![student_id, school_year, date],
+    )?;
+
+    let now = enroll::parse_date(&date).map(enroll::format_date).unwrap_or_default();
+    student::add_event(
+        c,
+        student_id,
+        school_year,
+        kind,
+        Some(&date),
+        seat.grade,
+        seat.class_name.as_deref(),
+        seat.class_no,
+        Some(&format!("예정일 변경 {was} → {now}")),
+        "MANUAL",
+    )?;
+
+    after_move(
+        c,
+        student_id,
+        school_year,
+        seat.grade,
+        seat.class_name.as_deref(),
+        seat.class_no,
+        today,
+    )?;
+    Ok(date)
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelInResult {
+    /// 학적이 하나도 남지 않아 학생 자료까지 지웠는가
+    pub student_removed: bool,
+}
+
+/// **전입 예정**을 되돌린다. 아직 오지 않은 전입에만 쓴다.
+///
+/// 그날이 되기 전이므로 되돌린다는 것은 '이 학년도에 오지 않는다' 는 뜻이다. 학적 줄을
+/// 지우고, 그 학생에게 학적이 하나도 남지 않으면(이번에 처음 만든 학생이면) 학생
+/// 자료까지 지운다 — 어느 화면에도 나오지 않는 유령 학생을 남기지 않기 위해서다.
+/// 이미 온 학생을 지우는 길이 아니다. 그 경우는 전출로 처리한다.
+pub fn transfer_in_cancel(
+    c: &Connection,
+    student_id: i64,
+    school_year: i32,
+    today: NaiveDate,
+) -> AppResult<CancelInResult> {
+    let seat = seat_of(c, student_id, school_year)?;
+    match seat.pending(today) {
+        Some(enroll::Pending::In(_)) => {}
+        _ => {
+            return Err(AppError::invalid(
+                "전입 예정인 학생만 되돌릴 수 있습니다. 이미 온 학생은 전출로 처리해 주세요.",
+            ))
+        }
+    }
+
+    // 무슨 일이 있었는지는 남긴다. 학적을 지우기 **전에** 적는다.
+    student::add_event(
+        c,
+        student_id,
+        school_year,
+        "CANCEL",
+        None,
+        seat.grade,
+        seat.class_name.as_deref(),
+        seat.class_no,
+        Some("전입 예정 취소"),
+        "MANUAL",
+    )?;
+
+    c.execute(
+        "DELETE FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
+        params![student_id, school_year],
+    )?;
+
+    let left: i64 = c.query_row(
+        "SELECT COUNT(*) FROM enrollments WHERE student_id = ?1",
+        [student_id],
+        |r| r.get(0),
+    )?;
+
+    let mut out = CancelInResult::default();
+    if left == 0 {
+        // 이번 전입으로 처음 만든 학생이다 — 학적이 없으면 어느 화면에도 나오지 않는다
+        student::delete(c, student_id)?;
+        out.student_removed = true;
+    } else {
+        student::sync_number_peers(
+            c,
+            school_year,
+            seat.grade,
+            seat.class_name.as_deref(),
+            &seat.class_no.into_iter().collect::<Vec<i32>>(),
+            student_id,
+            today,
+        )?;
+        for other in sibling_repo::confirmed_partners(c, student_id)? {
+            student::sync_issues(c, other, school_year, today).ok();
+        }
+    }
+    Ok(out)
+}
+
 /// 상태가 바뀐 뒤 표시를 맞춘다.
 ///
 /// 본인과 **같은 번호를 쓰던 같은 반 학생**까지 본다. 전출로 자리가 비면 남은 학생의
@@ -663,6 +877,12 @@ pub struct MoveRow {
     pub status: String,
     pub status_label: String,
     pub issue_count: i64,
+    /// 아직 오지 않은 이동이면 `IN` / `OUT`. 이미 지난 이동이면 None.
+    pub pending: Option<String>,
+    /// `전입 예정` / `전출 예정`
+    pub pending_label: Option<String>,
+    /// 기준일에 현재 재학생인가 — 명단·통계와 같은 판정이다
+    pub active_now: bool,
 }
 
 /// 그 학년도의 전입생 또는 전출생 목록.
@@ -674,6 +894,7 @@ pub fn list(
     want_in: bool,
     grade: Option<i32>,
     q: Option<&str>,
+    asof: NaiveDate,
 ) -> AppResult<Vec<MoveRow>> {
     let status = if want_in { "TRANSFER_IN" } else { "TRANSFER_OUT" };
     let date_col = if want_in {
@@ -687,7 +908,8 @@ pub fn list(
         "SELECT e.student_id, s.name, s.gender, e.grade, e.class_name, e.class_no,
                 {date_col}, e.transfer_out_to, e.transfer_out_note, e.status,
                 (SELECT COUNT(*) FROM issues i
-                  WHERE i.student_id = e.student_id AND i.status = 'OPEN')
+                  WHERE i.student_id = e.student_id AND i.status = 'OPEN'),
+                e.transfer_in_date, e.transfer_out_date
            FROM enrollments e
            JOIN students s ON s.id = e.student_id
           WHERE e.school_year = ?1 AND e.status = ?2
@@ -704,6 +926,12 @@ pub fn list(
                 let grade: i32 = r.get(3)?;
                 let class_name: Option<String> = r.get(4)?;
                 let status: String = r.get(9)?;
+                let in_date: Option<String> = r.get(11)?;
+                let out_date: Option<String> = r.get(12)?;
+                let pending =
+                    enroll::pending_on(&status, in_date.as_deref(), out_date.as_deref(), asof);
+                let active_now =
+                    enroll::active_on(&status, in_date.as_deref(), out_date.as_deref(), asof);
                 Ok(MoveRow {
                     student_id: r.get(0)?,
                     name: r.get(1)?,
@@ -721,6 +949,9 @@ pub fn list(
                         .to_string(),
                     status,
                     issue_count: r.get(10)?,
+                    pending: pending.map(|p| p.code().to_string()),
+                    pending_label: pending.map(|p| p.label().to_string()),
+                    active_now,
                 })
             },
         )?

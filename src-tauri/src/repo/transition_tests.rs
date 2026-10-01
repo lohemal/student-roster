@@ -91,7 +91,7 @@ fn 전환_대상은_그_학년도_재학생이다() {
     })
     .unwrap();
 
-    let rows = db.read(|c| seats(c, 2026)).unwrap();
+    let rows = db.read(|c| seats(c, 2026, today())).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].name, "남은학생", "전출한 학생은 진급 대상이 아니다");
 }
@@ -116,7 +116,7 @@ fn 나갔다_돌아온_학생은_전환_대상이다() {
     })
     .unwrap();
 
-    let rows = db.read(|c| seats(c, 2026)).unwrap();
+    let rows = db.read(|c| seats(c, 2026, today())).unwrap();
     assert_eq!(rows.len(), 1, "지금 다니고 있으면 대상이다");
 }
 
@@ -127,7 +127,7 @@ fn 이미_졸업한_학생은_다시_전환하지_않는다() {
     db.write(|c| graduate(c, id, 2026, 6, Some("가람"), Some(1), today()))
         .unwrap();
 
-    assert!(db.read(|c| seats(c, 2026)).unwrap().is_empty());
+    assert!(db.read(|c| seats(c, 2026, today())).unwrap().is_empty());
 }
 
 #[test]
@@ -138,7 +138,7 @@ fn 대상은_명단과_같은_차례로_나온다() {
     add(&db, "삼학년하나", 3, "가람", 1);
 
     let names: Vec<String> = db
-        .read(|c| seats(c, 2026))
+        .read(|c| seats(c, 2026, today()))
         .unwrap()
         .into_iter()
         .map(|s| s.name)
@@ -240,13 +240,13 @@ fn 대상_학년도에_학적이_있는지_센다() {
     let db = db();
     let id = add(&db, "올라갈학생", 3, "가람", 7);
 
-    let before = db.read(|c| year_state(c, 2027)).unwrap();
+    let before = db.read(|c| year_state(c, 2027, today())).unwrap();
     assert!(before.exists, "학년도는 만들어 두었다");
     assert_eq!(before.enrollments, 0);
 
     db.write(|c| promote(c, id, 2027, 4, Some("다솜"), Some(12)))
         .unwrap();
-    let after = db.read(|c| year_state(c, 2027)).unwrap();
+    let after = db.read(|c| year_state(c, 2027, today())).unwrap();
     assert_eq!(after.enrollments, 1);
     assert_eq!(after.active, 1);
 }
@@ -281,10 +281,10 @@ fn 전환_기록에는_인원만_남는다() {
 fn 명단이_바뀌면_상태_열쇠가_달라진다() {
     let db = db();
     let id = add(&db, "학생하나", 3, "가람", 7);
-    let key = db.read(|c| state_key(c, 2026)).unwrap();
+    let key = db.read(|c| state_key(c, 2026, today())).unwrap();
 
     // 같은 자료를 다시 읽으면 같은 값
-    assert_eq!(db.read(|c| state_key(c, 2026)).unwrap(), key);
+    assert_eq!(db.read(|c| state_key(c, 2026, today())).unwrap(), key);
 
     db.write(|c| {
         c.execute(
@@ -294,5 +294,5 @@ fn 명단이_바뀌면_상태_열쇠가_달라진다() {
         Ok(())
     })
     .unwrap();
-    assert_ne!(db.read(|c| state_key(c, 2026)).unwrap(), key);
+    assert_ne!(db.read(|c| state_key(c, 2026, today())).unwrap(), key);
 }

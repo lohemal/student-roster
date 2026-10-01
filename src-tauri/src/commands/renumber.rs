@@ -12,6 +12,7 @@ use crate::repo::{
     self,
     renumber::{ApplyResult, Preview},
 };
+use super::today;
 use crate::AppState;
 
 /// 번호를 바꾸면 같은 반에 무슨 일이 생기는지 미리 계산한다. DB 는 건드리지 않는다.
@@ -24,7 +25,7 @@ pub fn renumber_preview(
 ) -> AppResult<Preview> {
     state
         .db
-        .read(|c| repo::renumber::preview(c, student_id, school_year, new_no))
+        .read(|c| repo::renumber::preview(c, student_id, school_year, new_no, today()))
 }
 
 #[derive(Debug, Deserialize)]

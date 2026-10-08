@@ -95,7 +95,45 @@ export interface StatsOverview {
   consistency: Consistency
 }
 
+/** Excel 로 내보낼 수 있는 통계 */
+export type StatsSheetKey = 'GRADE' | 'CLASS' | 'ADDRESS'
+
+export interface StatsSheetInfo {
+  key: StatsSheetKey
+  label: string
+}
+
+export interface StatsExportPreview {
+  /** 확장자를 뺀 기본 파일 이름 */
+  defaultFileName: string
+  /** 만들어질 시트 이름 — 고른 차례가 아니라 화면 차례다 */
+  sheetNames: string[]
+  /** 센 학생 수. 화면 합계와 같아야 한다. */
+  students: number
+}
+
+export interface StatsExportResult {
+  path: string
+  folder: string
+  sheets: number
+}
+
 export const statsApi = {
   /** 고른 조건으로 모든 표를 한 번에 센다. */
   overview: (filter: StatFilter) => invoke<StatsOverview>('stats_overview', { filter }),
+
+  /** 고를 수 있는 통계. 이름의 원본은 Rust 에 있다. */
+  exportSheets: () => invoke<StatsSheetInfo[]>('stats_export_sheets'),
+
+  /**
+   * 무엇이 만들어질지 미리 본다.
+   *
+   * 화면이 쓰는 `filter` 를 그대로 넘긴다 — 화면과 파일이 같은 조건, 같은 집계를
+   * 지나야 숫자가 어긋나지 않는다.
+   */
+  exportPreview: (filter: StatFilter, sheets: StatsSheetKey[]) =>
+    invoke<StatsExportPreview>('stats_export_preview', { request: { filter, sheets } }),
+
+  exportRun: (filter: StatFilter, sheets: StatsSheetKey[], target: string) =>
+    invoke<StatsExportResult>('stats_export_run', { request: { filter, sheets, target } }),
 }

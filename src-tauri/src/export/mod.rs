@@ -13,6 +13,7 @@
 //!   * 로그에 학생 이름·연락처·주소를 남기지 않는다. 파일 수와 인원만 남긴다.
 
 pub mod preset;
+pub mod stats;
 
 use std::path::{Path, PathBuf};
 
@@ -30,12 +31,23 @@ pub struct SheetPlan {
     /// 열 너비 (Excel 문자 수). 머리글 수와 같아야 한다.
     #[serde(skip)]
     pub widths: Vec<f64>,
+    /// 숫자 칸으로 쓸 열. 비어 있으면 **모두 글자**다.
+    ///
+    /// 학생명단은 전부 글자로 쓴다 — `01012345678` 앞의 0 이 사라지고 `2017-03-15` 가
+    /// 날짜로 바뀌기 때문이다. 통계는 반대다. 인원을 글자로 쓰면 합계도 정렬도 되지
+    /// 않아 행정자료로 쓸 수 없다. 그래서 **열마다** 정한다.
+    #[serde(skip)]
+    pub numeric: Vec<bool>,
     pub rows: Vec<Vec<String>>,
 }
 
 impl SheetPlan {
     pub fn students(&self) -> usize {
         self.rows.len()
+    }
+
+    fn is_numeric(&self, col: usize) -> bool {
+        self.numeric.get(col).copied().unwrap_or(false)
     }
 }
 
@@ -131,10 +143,13 @@ fn write_file(plan: &FilePlan, path: &Path) -> AppResult<()> {
 
         for (r, row) in sheet.rows.iter().enumerate() {
             for (i, v) in row.iter().enumerate() {
-                // 언제나 글자 칸이다. 숫자로 쓰면 전화번호 앞의 0 이 사라지고,
+                // 기본은 글자 칸이다. 숫자로 쓰면 전화번호 앞의 0 이 사라지고,
                 // 자동 판정에 맡기면 값이 날짜나 수식으로 바뀔 수 있다.
-                ws.write_string(r as u32 + 1, i as u16, v)
-                    .map_err(xlsx_err)?;
+                // 통계처럼 열이 숫자라고 밝힌 자리에서만 숫자로 쓴다.
+                match sheet.is_numeric(i).then(|| v.parse::<f64>().ok()).flatten() {
+                    Some(n) => ws.write_number(r as u32 + 1, i as u16, n).map_err(xlsx_err)?,
+                    None => ws.write_string(r as u32 + 1, i as u16, v).map_err(xlsx_err)?,
+                };
             }
         }
     }

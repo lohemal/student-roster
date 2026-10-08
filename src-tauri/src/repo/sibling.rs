@@ -202,7 +202,17 @@ fn field_view(f: Field, mine: &Guardians, theirs: &Guardians) -> FieldView {
 }
 
 /// 학생이 쓰인 이름표. 지금 학년도 학적이 없으면 가장 최근 것을 쓴다.
-pub fn student_label_of(c: &Connection, student_id: i64, school_year: i32) -> AppResult<String> {
+/// 이름표 하나와 **명단 차례**를 매길 열쇠.
+///
+/// 형제를 여럿 늘어놓을 때 차례가 필요하다. 관계가 만들어진 차례대로 두면 같은
+/// 학생을 볼 때마다 순서가 달라 보인다. 학생명단과 같은 규칙(학년 → 반 → 이름)으로
+/// 늘어놓는다.
+struct Labeled {
+    order: (i32, (u8, i64, String), String),
+    text: String,
+}
+
+fn labeled(c: &Connection, student_id: i64, school_year: i32) -> AppResult<Labeled> {
     let row: Option<(String, i32, Option<String>)> = c
         .query_row(
             "SELECT s.name, e.grade, e.class_name
@@ -217,17 +227,33 @@ pub fn student_label_of(c: &Connection, student_id: i64, school_year: i32) -> Ap
         .optional()?;
 
     Ok(match row {
-        Some((name, grade, class_name)) => {
-            label::student_label(grade, class_name.as_deref(), &name)
-        }
+        Some((name, grade, class_name)) => Labeled {
+            order: (
+                grade,
+                label::class_sort_key(class_name.as_deref()),
+                name.clone(),
+            ),
+            text: label::student_label(grade, class_name.as_deref(), &name),
+        },
         // 학적이 하나도 없는 학생 (있을 수 없지만 이름만이라도 보여 준다)
-        None => c
-            .query_row("SELECT name FROM students WHERE id = ?1", [student_id], |r| {
-                r.get(0)
-            })
-            .optional()?
-            .unwrap_or_else(|| "알 수 없는 학생".into()),
+        None => {
+            let name: String = c
+                .query_row("SELECT name FROM students WHERE id = ?1", [student_id], |r| {
+                    r.get(0)
+                })
+                .optional()?
+                .unwrap_or_else(|| "알 수 없는 학생".into());
+            Labeled {
+                order: (i32::MAX, (9, 0, String::new()), name.clone()),
+                text: name,
+            }
+        }
     })
+}
+
+/// `1-나리 홍길동` — 지금 학적으로 그때그때 만든다.
+pub fn student_label_of(c: &Connection, student_id: i64, school_year: i32) -> AppResult<String> {
+    Ok(labeled(c, student_id, school_year)?.text)
 }
 
 /// 한 학생의 형제 관계를 화면에 보여 줄 모양으로.
@@ -291,14 +317,23 @@ pub fn list_for_student(
     Ok(out)
 }
 
-/// 학생명단에 보여 줄 짧은 형제 표시.
+/// 학생명단에 보여 줄 형제 표시.
+///
+/// **몇 명인지가 아니라 누구인지를 보여 준다.** 둘 이상이어도 `2명` 으로 줄이지
+/// 않는다 — 명단을 보며 형제를 확인하는 일이 실제 업무이고, 수만 적혀 있으면
+/// 학생 상세를 한 명씩 열어야 한다.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SiblingBrief {
     pub count: i64,
-    /// 한 명이면 `1-나리 홍길동`, 여럿이면 `2명`
+    /// `5-2 오정우` · `2-1 김하늘 · 4-2 김바다` — 지금 학적으로 그때그때 만든다
     pub text: String,
+    /// 이름표 하나씩. 화면이 줄바꿈할 자리를 스스로 고를 수 있게 함께 준다.
+    pub labels: Vec<String>,
 }
+
+/// 형제 이름표를 잇는 글자. 이름에 쉼표가 들어가도 헷갈리지 않는다.
+pub const BRIEF_SEP: &str = " · ";
 
 /// 그 학년도에 이 학생이 어떤 상태인지. 지금 학적이 없으면 None.
 ///
@@ -378,17 +413,20 @@ pub fn brief(
             partners.push(p);
         }
     }
-    Ok(match partners.len() {
-        0 => None,
-        1 => Some(SiblingBrief {
-            count: 1,
-            text: student_label_of(c, partners[0], school_year)?,
-        }),
-        n => Some(SiblingBrief {
-            count: n as i64,
-            text: format!("{n}명"),
-        }),
-    })
+    if partners.is_empty() {
+        return Ok(None);
+    }
+    let mut items = Vec::with_capacity(partners.len());
+    for p in partners {
+        items.push(labeled(c, p, school_year)?);
+    }
+    items.sort_by(|a, b| a.order.cmp(&b.order));
+    let labels: Vec<String> = items.into_iter().map(|l| l.text).collect();
+    Ok(Some(SiblingBrief {
+        count: labels.len() as i64,
+        text: labels.join(BRIEF_SEP),
+        labels,
+    }))
 }
 
 // ---------------------------------------------------------------

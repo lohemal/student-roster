@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, FileSpreadsheet } from 'lucide-react'
 
 import { Button, Empty, ErrorNotice, Notice, Page, Select } from '@/components/ui'
+import { StatsExportDialog } from '@/features/stats/StatsExport'
 import { addressApi } from '@/ipc/address'
 import { settingsApi } from '@/ipc/settings'
 import {
@@ -49,6 +50,8 @@ export function StatsPage() {
   const [year, setYear] = useState<number | null>(null)
   const [grade, setGrade] = useState<number | null>(null)
   const [addressPick, setAddressPick] = useState('')
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exportDone, setExportDone] = useState<string | null>(null)
 
   const schoolYear = year ?? currentYear
 
@@ -178,7 +181,38 @@ export function StatsPage() {
             {data.isCurrentYear ? '현재 재학생 기준' : '학년도 최종 재적 기준'}
           </span>
         )}
+        {/* 지금 보고 있는 조건 그대로 내보낸다 — 화면과 파일의 숫자가 같아야 한다 */}
+        <Button
+          size="sm"
+          variant="outline"
+          icon={FileSpreadsheet}
+          onClick={() => {
+            setExportDone(null)
+            setExportOpen(true)
+          }}
+          disabled={!filter}
+        >
+          Excel 다운로드
+        </Button>
       </div>
+
+      {exportDone && (
+        <div className={s.doneRow}>
+          <Notice tone="success">{exportDone}</Notice>
+        </div>
+      )}
+
+      {exportOpen && filter && (
+        <StatsExportDialog
+          filter={filter}
+          who={who}
+          onClose={() => setExportOpen(false)}
+          onDone={(message) => {
+            setExportOpen(false)
+            setExportDone(message)
+          }}
+        />
+      )}
 
       {!data ? (
         <div className={s.basis}>불러오는 중…</div>

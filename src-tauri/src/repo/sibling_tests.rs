@@ -593,9 +593,98 @@ fn 한_학생이_여러_형제를_가질_수_있다() {
     let confirmed = db.read(|c| confirmed_partners(c, a)).unwrap();
     assert_eq!(confirmed.len(), 2);
 
+    // **몇 명인지가 아니라 누구인지**를 보여 준다 — 명단에서 바로 확인할 수 있어야 한다
     let b = db.read(|c| brief(c, a, 2026, today())).unwrap().unwrap();
     assert_eq!(b.count, 2);
-    assert_eq!(b.text, "2명");
+    assert_eq!(b.labels, vec!["3-가람 둘째", "3-가람 셋째"]);
+    assert_eq!(b.text, "3-가람 둘째 · 3-가람 셋째");
+    assert!(!b.text.contains("명"), "'2명' 으로 줄이지 않는다");
+}
+
+#[test]
+fn 형제가_셋이면_셋_다_보여_준다() {
+    let db = db();
+    let a = add_at(&db, "첫째", 2, "가람", "가철수", "가영희", "", "");
+    add_at(&db, "둘째", 4, "나리", "가철수", "가영희", "", "");
+    add_at(&db, "셋째", 6, "다솜", "가철수", "가영희", "", "");
+    add_at(&db, "넷째", 1, "라온", "가철수", "가영희", "", "");
+    run_scan(&db);
+
+    for v in links(&db, a) {
+        db.write(|c| confirm(c, v.link_id)).unwrap();
+    }
+
+    let b = db.read(|c| brief(c, a, 2026, today())).unwrap().unwrap();
+    assert_eq!(b.count, 3);
+    assert_eq!(
+        b.text, "1-라온 넷째 · 4-나리 둘째 · 6-다솜 셋째",
+        "학년·반 이름표가 모두 들어간다"
+    );
+}
+
+#[test]
+fn 글자_반_이름도_그대로_보여_준다() {
+    let db = db();
+    let a = add_at(&db, "첫째", 1, "나리", "가철수", "가영희", "", "");
+    add_at(&db, "둘째", 5, "가람", "가철수", "가영희", "", "");
+    run_scan(&db);
+    for v in links(&db, a) {
+        db.write(|c| confirm(c, v.link_id)).unwrap();
+    }
+
+    let b = db.read(|c| brief(c, a, 2026, today())).unwrap().unwrap();
+    assert_eq!(b.text, "5-가람 둘째", "반이 TEXT 라도 그대로");
+}
+
+#[test]
+fn 반이_없는_형제는_미정으로_보여_준다() {
+    // 억지로 숫자를 만들지 않는다 — 지금 자료 그대로 보여 준다
+    let db = db();
+    let a = add_at(&db, "첫째", 1, "나리", "가철수", "가영희", "", "");
+    let b = add_at(&db, "둘째", 3, "가람", "가철수", "가영희", "", "");
+    db.write(|c| {
+        c.execute(
+            "UPDATE enrollments SET class_name = NULL WHERE student_id = ?1",
+            [b],
+        )?;
+        Ok(())
+    })
+    .unwrap();
+    run_scan(&db);
+    for v in links(&db, a) {
+        db.write(|c| confirm(c, v.link_id)).unwrap();
+    }
+
+    let brief = db.read(|c| brief(c, a, 2026, today())).unwrap().unwrap();
+    assert_eq!(brief.text, "3-미정 둘째");
+}
+
+#[test]
+fn 전출한_형제는_여럿일_때도_빠진다() {
+    // v0.1.3 의 '현재 본교 형제' 판정은 그대로다 — 전원 표시가 그것을 바꾸지 않는다
+    let db = db();
+    let a = add_at(&db, "첫째", 2, "가람", "가철수", "가영희", "", "");
+    add_at(&db, "둘째", 4, "나리", "가철수", "가영희", "", "");
+    let third = add_at(&db, "셋째", 6, "다솜", "가철수", "가영희", "", "");
+    add_at(&db, "넷째", 1, "라온", "가철수", "가영희", "", "");
+    run_scan(&db);
+    for v in links(&db, a) {
+        db.write(|c| confirm(c, v.link_id)).unwrap();
+    }
+    db.write(|c| {
+        c.execute(
+            "UPDATE enrollments
+                SET status = 'TRANSFER_OUT', transfer_out_date = '2026-09-01'
+              WHERE student_id = ?1",
+            [third],
+        )?;
+        Ok(())
+    })
+    .unwrap();
+
+    let b = db.read(|c| brief(c, a, 2026, today())).unwrap().unwrap();
+    assert_eq!(b.count, 2, "전출한 셋째는 본교 형제가 아니다");
+    assert_eq!(b.text, "1-라온 넷째 · 4-나리 둘째");
 }
 
 #[test]
@@ -990,4 +1079,88 @@ fn 후보_목록은_전출한_학생의_쌍을_보여_주지_않는다() {
         candidate_rows(&db).is_empty(),
         "업무함에 없는 학생은 일괄 확정 목록에도 없다"
     );
+}
+
+// ---------------------------------------------------------------
+// 지난 학년도 형제 — 확정·거절이 막히면 안 된다
+// ---------------------------------------------------------------
+
+/// 지난 학년도에만 학적이 있는 학생을 하나 만들고 후보로 걸어 둔다.
+fn with_last_year_candidate(db: &Db, me: i64) -> i64 {
+    let old = db
+        .write(|c| {
+            settings::create_year(c, 2025)?;
+            student::create(
+                c,
+                &student::StudentInput {
+                    name: "지난해".into(),
+                    father_name: Some("가철수".into()),
+                    mother_name: Some("가영희".into()),
+                    school_year: 2025,
+                    grade: 6,
+                    class_name: Some("가람".into()),
+                    class_no: Some(1),
+                    ..Default::default()
+                },
+                today(),
+            )
+        })
+        .unwrap();
+    db.write(|c| {
+        c.execute(
+            "INSERT INTO sibling_links(student_a, student_b, status, source)
+             VALUES (?1, ?2, 'CANDIDATE', 'MANUAL')",
+            [me.min(old), me.max(old)],
+        )?;
+        Ok(c.last_insert_rowid())
+    })
+    .unwrap()
+}
+
+#[test]
+fn 지난_학년도_학생과의_후보도_확정할_수_있다() {
+    // 명령이 하는 일 그대로 — 확정한 뒤 두 학생의 표시를 맞춘다.
+    // 상대에게 올해 학적이 없다고 `sync_issues` 가 오류를 내면 트랜잭션이 통째로
+    // 되돌아가 확정 자체가 안 된다(v0.1.3 에서 실제로 그랬다).
+    let db = db();
+    let me = add(&db, "첫째", "가철수", "가영희", "", "");
+    let link_id = with_last_year_candidate(&db, me);
+
+    db.write(|c| {
+        let (a, b) = confirm(c, link_id)?;
+        student::sync_issues(c, a, 2026, today())?;
+        student::sync_issues(c, b, 2026, today())?;
+        Ok(())
+    })
+    .unwrap();
+
+    assert_eq!(status_of(&db, link_id), "CONFIRMED");
+}
+
+#[test]
+fn 지난_학년도_학생과의_후보도_거절할_수_있다() {
+    let db = db();
+    let me = add(&db, "첫째", "가철수", "가영희", "", "");
+    let link_id = with_last_year_candidate(&db, me);
+
+    db.write(|c| {
+        let (a, b) = reject(c, link_id)?;
+        student::sync_issues(c, a, 2026, today())?;
+        student::sync_issues(c, b, 2026, today())?;
+        Ok(())
+    })
+    .unwrap();
+
+    assert_eq!(status_of(&db, link_id), "REJECTED");
+}
+
+#[test]
+fn 지난_학년도_학생은_올해_형제_수에_들지_않는다() {
+    // 확정은 되지만 '본교 형제' 는 지금 함께 다니는 학생만 센다
+    let db = db();
+    let me = add(&db, "첫째", "가철수", "가영희", "", "");
+    let link_id = with_last_year_candidate(&db, me);
+    db.write(|c| confirm(c, link_id).map(|_| ())).unwrap();
+
+    assert_eq!(db.read(|c| brief(c, me, 2026, today())).unwrap().is_none(), true);
 }

@@ -81,9 +81,24 @@ pub struct IssueRow {
     pub kind: String,
     pub kind_label: String,
     pub message: String,
+    /// 사람이 읽을 보충 설명만. 내부 근거(JSON)는 들어오지 않는다 — `user_detail` 참고.
     pub detail: Option<String>,
     pub ref_id: Option<i64>,
     pub created_at: String,
+}
+
+/// 화면에 내보낼 보충 설명.
+///
+/// `issues.detail` 에는 두 가지가 섞여 있다 — 사람에게 보여 줄 말(`입력값: 2017.3.5`)과
+/// 프로그램이 쓰는 근거(`{"otherStudentId":209}`, `["motherName"]`). 뒤엣것은
+/// 업무하는 사람이 볼 것이 아니다. **지우지는 않는다** — 형제 확정·보호자 가져오기가
+/// 근거로 삼고, 나중에 무엇을 보고 그렇게 판단했는지 되짚을 자리이기 때문이다.
+/// 내보낼 때만 가린다. 한곳에서 가려야 화면마다 어긋나지 않는다.
+pub fn user_detail(detail: Option<String>) -> Option<String> {
+    detail.filter(|d| {
+        let t = d.trim();
+        !t.is_empty() && !t.starts_with('{') && !t.starts_with('[')
+    })
 }
 
 /// 열려 있는 확인 필요 하나를 만든다. 이미 같은 것이 열려 있으면 문구만 갱신한다.
@@ -180,7 +195,7 @@ pub fn list_for_student(c: &Connection, student_id: i64) -> AppResult<Vec<IssueR
                 kind_label: IssueKind::label(&kind).to_string(),
                 kind,
                 message: r.get(2)?,
-                detail: r.get(3)?,
+                detail: user_detail(r.get(3)?),
                 ref_id: r.get(4)?,
                 created_at: r.get(5)?,
             })
@@ -263,6 +278,7 @@ pub struct IssueListRow {
     pub kind_label: String,
     /// 무엇을 확인해야 하는지
     pub message: String,
+    /// 사람이 읽을 보충 설명만 (`user_detail`)
     pub detail: Option<String>,
     pub status: String,
     pub status_label: String,
@@ -384,7 +400,7 @@ pub fn list(
                 tab: IssueKind::tab(&kind).to_string(),
                 kind,
                 message: r.get(5)?,
-                detail: r.get(6)?,
+                detail: user_detail(r.get(6)?),
                 status_label: status_label(&status).to_string(),
                 status,
                 created_at: r.get(8)?,

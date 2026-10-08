@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, RefreshCw, Users } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Users } from 'lucide-react'
 
 import {
   Badge,
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui'
 import { DataCard } from '@/features/system/DataCard'
 import { UpdateCard } from '@/features/system/UpdateCard'
+import { YearDeleteDialog } from '@/features/system/YearDelete'
 import { watchJob, type JobProgress } from '@/ipc/import'
 import { issueApi } from '@/ipc/issue'
 import { settingsApi } from '@/ipc/settings'
@@ -56,6 +57,10 @@ export function SettingsPage() {
     mutationFn: (year: number) => settingsApi.setCurrentYear(year),
     onSuccess: invalidate,
   })
+
+  // 지우기는 확인 창을 먼저 연다 — 버튼 한 번으로 사라지면 안 된다
+  const [deleting, setDeleting] = useState<number | null>(null)
+  const [yearDone, setYearDone] = useState<string | null>(null)
 
   // ---- 자료 점검 ----
   const recompute = useMutation({
@@ -161,14 +166,29 @@ export function SettingsPage() {
                   {y.isCurrent ? (
                     <Badge tone="info">현재 학년도</Badge>
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setCurrent.mutate(y.year)}
-                      disabled={setCurrent.isPending}
-                    >
-                      현재로 지정
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setCurrent.mutate(y.year)}
+                        disabled={setCurrent.isPending}
+                      >
+                        현재로 지정
+                      </Button>
+                      {/*
+                        지울 수 있는지는 Rust 가 가린다. 여기서 달력 연도로 미리
+                        감추면 1~2월에 규칙이 어긋난다 — 누르면 까닭을 알려 준다.
+                      */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={Trash2}
+                        onClick={() => setDeleting(y.year)}
+                        aria-label={`${y.year}학년도 삭제`}
+                      >
+                        삭제
+                      </Button>
+                    </>
                   )}
                 </div>
               ))}
@@ -194,6 +214,7 @@ export function SettingsPage() {
                 </Button>
               </FieldAction>
             </div>
+            {yearDone && <Notice tone="success">{yearDone}</Notice>}
             <ErrorNotice error={createYear.error ?? setCurrent.error} />
           </div>
         </Card>
@@ -280,6 +301,24 @@ export function SettingsPage() {
         </Card>
 
         <DataCard />
+
+        {deleting != null && (
+          <YearDeleteDialog
+            year={deleting}
+            onClose={() => setDeleting(null)}
+            onDone={(message) => {
+              setDeleting(null)
+              setYearDone(message)
+              invalidate()
+              // 학년도가 사라지면 명단 · 통계 · 내보내기의 고르기도 함께 바뀐다
+              qc.invalidateQueries({ queryKey: ['students'] })
+              qc.invalidateQueries({ queryKey: ['stats'] })
+              qc.invalidateQueries({ queryKey: ['class-options'] })
+              qc.invalidateQueries({ queryKey: ['issue-summary'] })
+              qc.invalidateQueries({ queryKey: ['backups'] })
+            }}
+          />
+        )}
 
         <UpdateCard />
 

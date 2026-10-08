@@ -351,3 +351,100 @@ fn 미해결이_해결됨보다_먼저_나온다() {
         "해결된 것이 위로 올라오면 안 된다"
     );
 }
+
+// ---------------------------------------------------------------
+// 내부 근거는 화면에 내보내지 않는다
+// ---------------------------------------------------------------
+
+#[test]
+fn 내부_근거_JSON은_화면에_나가지_않는다() {
+    let (db, id) = db_with_student();
+    db.write(|c| {
+        open(
+            c,
+            id,
+            IssueKind::Duplicate,
+            "같은 학년도에 이름과 생년월일이 같은 학생이 있습니다.",
+            Some("{\"otherStudentId\":209}"),
+            None,
+        )
+    })
+    .unwrap();
+
+    // 목록에도
+    let row = find(&db, year(2026)).into_iter().find(|r| r.kind == "DUPLICATE").unwrap();
+    assert!(
+        row.message.contains("같은 학생인지") || !row.message.is_empty(),
+        "설명은 그대로 보여 준다"
+    );
+    assert_eq!(row.detail, None, "{{\"otherStudentId\":209}} 가 보이면 안 된다");
+
+    // 학생 상세에도
+    let mine = db.read(|c| list_for_student(c, id)).unwrap();
+    assert_eq!(mine[0].detail, None);
+
+    // 자료는 그대로 남아 있다 — 지우는 것이 아니라 보여 주지 않는 것이다
+    let stored: Option<String> = db
+        .read(|c| {
+            Ok(c.query_row(
+                "SELECT detail FROM issues WHERE student_id = ?1 AND kind = 'DUPLICATE'",
+                [id],
+                |r| r.get(0),
+            )?)
+        })
+        .unwrap();
+    assert_eq!(stored.as_deref(), Some("{\"otherStudentId\":209}"));
+}
+
+#[test]
+fn 보호자_항목_목록도_감춘다() {
+    let (db, id) = db_with_student();
+    db.write(|c| {
+        open(
+            c,
+            id,
+            IssueKind::GuardianFill,
+            "형제에게 등록된 모 연락처를 가져올 수 있습니다.",
+            Some("[\"motherPhone\"]"),
+            Some(7),
+        )
+    })
+    .unwrap();
+
+    let mine = db.read(|c| list_for_student(c, id)).unwrap();
+    assert_eq!(mine[0].detail, None, "항목 이름 배열도 개발용이다");
+    assert_eq!(mine[0].ref_id, Some(7), "관계 번호는 그대로 쓴다");
+}
+
+#[test]
+fn 사람이_읽을_설명은_그대로_보여_준다() {
+    let (db, id) = db_with_student();
+    db.write(|c| {
+        open(
+            c,
+            id,
+            IssueKind::Birth,
+            "생년월일을 날짜로 읽지 못했습니다.",
+            Some("입력값: 2017.3.5."),
+            None,
+        )
+    })
+    .unwrap();
+
+    let mine = db.read(|c| list_for_student(c, id)).unwrap();
+    assert_eq!(mine[0].detail.as_deref(), Some("입력값: 2017.3.5."));
+
+    let row = find(&db, year(2026)).into_iter().find(|r| r.kind == "BIRTH").unwrap();
+    assert_eq!(row.detail.as_deref(), Some("입력값: 2017.3.5."));
+}
+
+#[test]
+fn 빈_설명은_빈_줄을_만들지_않는다() {
+    assert_eq!(user_detail(Some("   ".into())), None);
+    assert_eq!(user_detail(None), None);
+    assert_eq!(user_detail(Some("  {\"a\":1}  ".into())), None, "앞뒤 공백도 본다");
+    assert_eq!(
+        user_detail(Some("3학년 가람반".into())).as_deref(),
+        Some("3학년 가람반")
+    );
+}

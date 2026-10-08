@@ -585,12 +585,25 @@ pub fn add_event(
 ///
 /// Phase 1 에서 스스로 판단할 수 있는 것만 다룬다. 주소·형제는 각 Phase 에서
 /// 같은 자리에 더한다.
+///
+/// **그 학년도에 학적이 없는 학생이면 아무것도 하지 않는다 (v0.1.4).** 반·번호도
+/// 번호 중복도 그 학년도 학적을 보고 따지는 것이라 만들 수가 없다. 예전에는 학적을
+/// 읽다가 `NOT_FOUND` 를 냈고, 그 오류가 부르는 쪽의 트랜잭션을 통째로 되돌렸다 —
+/// 지난 학년도 학생과 걸린 **형제 후보를 확정도 거절도 할 수 없었다.**
 pub fn sync_issues(
     c: &Connection,
     student_id: i64,
     school_year: i32,
     today: NaiveDate,
 ) -> AppResult<()> {
+    let enrolled: i64 = c.query_row(
+        "SELECT COUNT(*) FROM enrollments WHERE student_id = ?1 AND school_year = ?2",
+        params![student_id, school_year],
+        |r| r.get(0),
+    )?;
+    if enrolled == 0 {
+        return Ok(());
+    }
     let (name, gender, birth_raw, birth_date, address, has_phone): (
         String,
         Option<String>,

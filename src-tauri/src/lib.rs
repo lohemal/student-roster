@@ -136,6 +136,8 @@ pub fn run() {
             commands::settings::settings_save_school,
             commands::settings::school_year_create,
             commands::settings::school_year_set_current,
+            commands::settings::school_year_delete_impact,
+            commands::settings::school_year_delete,
             // 학생 · 명단
             commands::student::student_list,
             commands::student::student_get,
@@ -174,6 +176,9 @@ pub fn run() {
             commands::graduation::graduation_cancel,
             // 통계
             commands::stats::stats_overview,
+            commands::stats::stats_export_sheets,
+            commands::stats::stats_export_preview,
+            commands::stats::stats_export_run,
             // 엑셀 내보내기
             commands::export::export_columns,
             commands::export::export_preview,

@@ -31,10 +31,18 @@ export interface SiblingView {
   decidedAt: string | null
 }
 
-/** 학생명단에 보여 줄 짧은 형제 표시 */
+/**
+ * 학생명단에 보여 줄 형제 표시.
+ *
+ * 둘 이상이어도 `2명` 으로 줄이지 않는다 — 몇 명인지보다 **누구인지**가 업무에
+ * 필요하다. 학생 상세를 열지 않고 명단에서 바로 확인할 수 있어야 한다.
+ */
 export interface SiblingBrief {
   count: number
+  /** `5-2 오정우` · `2-1 김하늘 · 4-2 김바다` */
   text: string
+  /** 이름표 하나씩 — 명단 차례(학년 → 반 → 이름)로 온다 */
+  labels: string[]
 }
 
 export interface ScanResult {

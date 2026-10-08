@@ -44,6 +44,8 @@ pub enum Kind {
     BeforeMigration,
     /// 학년도 전환 직전
     BeforeTransition,
+    /// 학년도 삭제 직전
+    BeforeYearDelete,
     /// 사용자가 다른 곳에서 가져다 둔 파일
     Other,
 }
@@ -56,6 +58,7 @@ impl Kind {
             Kind::BeforeRestore => "BEFORE_RESTORE",
             Kind::BeforeMigration => "BEFORE_MIGRATION",
             Kind::BeforeTransition => "BEFORE_TRANSITION",
+            Kind::BeforeYearDelete => "BEFORE_YEAR_DELETE",
             Kind::Other => "OTHER",
         }
     }
@@ -67,6 +70,7 @@ impl Kind {
             Kind::BeforeRestore => "복원 전",
             Kind::BeforeMigration => "자료 구조 변경 전",
             Kind::BeforeTransition => "학년도 전환 전",
+            Kind::BeforeYearDelete => "학년도 삭제 전",
             Kind::Other => "그 밖의 파일",
         }
     }
@@ -79,6 +83,7 @@ impl Kind {
             Kind::BeforeRestore => "before_restore_",
             Kind::BeforeMigration => "before_migration_",
             Kind::BeforeTransition => "before_year_transition_",
+            Kind::BeforeYearDelete => "before_year_delete_",
             Kind::Other => "",
         }
     }
@@ -97,6 +102,7 @@ impl Kind {
             Kind::BeforeRestore,
             Kind::BeforeMigration,
             Kind::BeforeTransition,
+            Kind::BeforeYearDelete,
         ] {
             if name.starts_with(k.prefix()) {
                 return k;

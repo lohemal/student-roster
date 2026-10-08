@@ -483,7 +483,8 @@ export function StudentsPage() {
                   <td>
                     <PrimaryPhoneCell row={r} />
                   </td>
-                  <td className={s.siblingCell}>
+                  {/* 형제가 둘 이상이어도 전원 보여 준다 — 상세를 열지 않고 확인한다 */}
+                  <td className={s.siblingCell} title={r.sibling?.text}>
                     {r.sibling ? r.sibling.text : ''}
                   </td>
                   <td>

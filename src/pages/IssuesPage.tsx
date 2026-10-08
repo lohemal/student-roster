@@ -422,9 +422,8 @@ function Row({
       </td>
       <td className={s.msgCell} title={row.message}>
         <span className={s.msg}>{row.message}</span>
-        {row.detail && !row.detail.startsWith('{') && !row.detail.startsWith('[') && (
-          <span className={s.detail}>{row.detail}</span>
-        )}
+        {/* `detail` 은 Rust 의 `user_detail` 이 거른 뒤에 온다 — 내부 근거(JSON)는 오지 않는다 */}
+        {row.detail && <span className={s.detail}>{row.detail}</span>}
       </td>
       <td className={s.whenCell}>{shortDate(row.createdAt)}</td>
       <td className={s.whenCell}>{shortDate(row.resolvedAt)}</td>

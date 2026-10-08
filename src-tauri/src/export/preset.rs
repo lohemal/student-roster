@@ -232,6 +232,7 @@ pub fn custom(rows: &[Row], columns: &[Column], school_year: i32, by: Grouping) 
                 name: "학생명단".into(),
                 headers: headers.clone(),
                 widths: widths.clone(),
+                numeric: Vec::new(),
                 rows: g
                     .rows
                     .iter()
@@ -295,6 +296,7 @@ pub fn schooljongi(rows: &[Row], school_year: i32) -> ExportPlan {
             name,
             headers: headers.clone(),
             widths: widths.clone(),
+            numeric: Vec::new(),
             rows: mates
                 .iter()
                 .map(|r| {
@@ -429,6 +431,7 @@ pub fn alime(rows: &[Row], school_year: i32, by: Grouping) -> ExportPlan {
                     name: "문자명단".into(),
                     headers: headers.clone(),
                     widths: widths.clone(),
+                    numeric: Vec::new(),
                     rows: chunk
                         .iter()
                         .map(|r| {
@@ -547,6 +550,7 @@ pub fn promotion(rows: &[Row], school_year: i32) -> ExportPlan {
                 name: "진급배정".into(),
                 headers,
                 widths,
+                numeric: Vec::new(),
                 rows: sheet_rows,
             }],
         }]

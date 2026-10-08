@@ -68,6 +68,11 @@
 
 /* ---------- 구역 ---------- */
 
+/* 내보내기처럼 한 번 하고 결과를 알리는 줄 */
+.doneRow {
+  margin-bottom: var(--sp-3);
+}
+
 .section {
   margin-bottom: var(--sp-5);
 }
